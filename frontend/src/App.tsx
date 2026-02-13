@@ -189,6 +189,13 @@ function App() {
   const [selectedProductCategory, setSelectedProductCategory] = useState("styling")
   const [showProductCheckout, setShowProductCheckout] = useState(false)
 
+  // Feedback
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [feedbackType, setFeedbackType] = useState<"bug" | "feature">("bug")
+  const [feedbackTitle, setFeedbackTitle] = useState("")
+  const [feedbackDescription, setFeedbackDescription] = useState("")
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
+
   // Appointments
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [appointmentDate, setAppointmentDate] = useState(new Date().toISOString().split('T')[0])
@@ -478,6 +485,28 @@ function App() {
     setProductCart([])
     setShowProductCheckout(false)
     loadProducts()
+  }
+
+  const submitFeedback = async () => {
+    if (!feedbackTitle.trim() || !feedbackDescription.trim()) return
+    await fetch(`${API_BASE}/feedback/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: feedbackType,
+        title: feedbackTitle.trim(),
+        description: feedbackDescription.trim(),
+        page_url: window.location.href,
+        user_agent: navigator.userAgent
+      })
+    })
+    setFeedbackSubmitted(true)
+    setTimeout(() => {
+      setShowFeedbackModal(false)
+      setFeedbackSubmitted(false)
+      setFeedbackTitle("")
+      setFeedbackDescription("")
+    }, 2000)
   }
 
   const searchCustomers = useCallback(async (phone: string) => {
@@ -1055,6 +1084,80 @@ function App() {
           </table>
         </div>
       )}
+    </div>
+  )
+
+  // Feedback Modal
+  const FeedbackModal = () => (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full mx-4">
+        {feedbackSubmitted ? (
+          <div className="text-center py-8">
+            <div className="text-5xl mb-4">✅</div>
+            <h2 className="text-2xl font-bold text-green-600">Thank you!</h2>
+            <p className="text-gray-500 mt-2">Your feedback has been submitted.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">📝 Send Feedback</h2>
+              <button onClick={() => setShowFeedbackModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setFeedbackType("bug")}
+                className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                  feedbackType === "bug" ? "bg-red-600 text-white" : "bg-gray-100 hover:bg-gray-200"
+                }`}
+              >
+                🐛 Bug Report
+              </button>
+              <button
+                onClick={() => setFeedbackType("feature")}
+                className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                  feedbackType === "feature" ? "bg-blue-600 text-white" : "bg-gray-100 hover:bg-gray-200"
+                }`}
+              >
+                💡 Feature Request
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder={feedbackType === "bug" ? "What went wrong?" : "What would you like?"}
+                value={feedbackTitle}
+                onChange={e => setFeedbackTitle(e.target.value)}
+                className="w-full p-3 border-2 rounded-lg focus:border-blue-500 focus:outline-none"
+              />
+              <textarea
+                placeholder="Describe in detail..."
+                value={feedbackDescription}
+                onChange={e => setFeedbackDescription(e.target.value)}
+                rows={4}
+                className="w-full p-3 border-2 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
+              />
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowFeedbackModal(false)}
+                className="flex-1 py-3 bg-gray-200 rounded-lg font-semibold hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitFeedback}
+                disabled={!feedbackTitle.trim() || !feedbackDescription.trim()}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300"
+              >
+                Submit
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 
@@ -1987,6 +2090,13 @@ function App() {
           <h1 className="text-2xl font-bold">💈 Barbershop POS</h1>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setShowFeedbackModal(true)}
+              className="px-3 py-2 bg-slate-700 rounded-lg hover:bg-slate-600"
+              title="Send Feedback"
+            >
+              📝
+            </button>
+            <button
               onClick={() => { loadDrawerStatus(); setShowCashDrawer(true) }}
               className="px-3 py-2 bg-slate-700 rounded-lg hover:bg-slate-600"
               title="Cash Drawer"
@@ -2043,6 +2153,7 @@ function App() {
       {showCustomerProfile && <CustomerProfileModal />}
       {showCashDrawer && <CashDrawerModal />}
       {showProductCheckout && <ProductCheckoutModal />}
+      {showFeedbackModal && <FeedbackModal />}
     </div>
   )
 }
