@@ -76,7 +76,27 @@ interface OrderService {
   quantity: number
 }
 
-type ViewMode = "pos" | "queue" | "orders" | "reports"
+interface Appointment {
+  id: number
+  customer_name: string
+  customer_phone: string
+  barber_id?: number
+  barber_name?: string
+  service_type_id: number
+  service_name?: string
+  scheduled_time: string
+  duration_minutes: number
+  status: string
+  notes?: string
+}
+
+interface TimeSlot {
+  time: string
+  datetime: string
+  available: boolean
+}
+
+type ViewMode = "pos" | "queue" | "appointments" | "orders" | "reports"
 
 const CATEGORIES = [
   { id: "haircut", label: "✂️ Haircuts", color: "blue" },
@@ -134,6 +154,18 @@ function App() {
   const [dailyReport, setDailyReport] = useState<any>(null)
   const [earningsReport, setEarningsReport] = useState<any>(null)
 
+  // Appointments
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [appointmentDate, setAppointmentDate] = useState(new Date().toISOString().split('T')[0])
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
+  const [selectedServiceForAppt, setSelectedServiceForAppt] = useState<ServiceType | null>(null)
+  const [selectedBarberForAppt, setSelectedBarberForAppt] = useState<Barber | null>(null)
+  const [apptCustomerName, setApptCustomerName] = useState("")
+  const [apptCustomerPhone, setApptCustomerPhone] = useState("")
+  const [bookingStep, setBookingStep] = useState<"service" | "time" | "details">("service")
+
   // Load initial data
   useEffect(() => {
     Promise.all([
@@ -177,6 +209,13 @@ function App() {
     }
   }, [viewMode])
 
+  // Load appointments
+  useEffect(() => {
+    if (viewMode === "appointments") {
+      loadAppointments()
+    }
+  }, [viewMode, appointmentDate])
+
   const loadQueue = async () => {
     try {
       const [queueData, statsData] = await Promise.all([
@@ -213,6 +252,67 @@ function App() {
     } catch (e) {
       console.error("Failed to load reports:", e)
     }
+  }
+
+  const loadAppointments = async () => {
+    try {
+      const data = await fetch(`${API_BASE}/appointments/?date=${appointmentDate}`).then(r => r.json())
+      setAppointments(data)
+    } catch (e) {
+      console.error("Failed to load appointments:", e)
+    }
+  }
+
+  const loadTimeSlots = async () => {
+    if (!selectedServiceForAppt) return
+    try {
+      let url = `${API_BASE}/appointments/available-slots?date=${appointmentDate}&service_type_id=${selectedServiceForAppt.id}`
+      if (selectedBarberForAppt) url += `&barber_id=${selectedBarberForAppt.id}`
+      const data = await fetch(url).then(r => r.json())
+      setTimeSlots(data)
+    } catch (e) {
+      console.error("Failed to load time slots:", e)
+    }
+  }
+
+  const bookAppointment = async () => {
+    if (!selectedServiceForAppt || !selectedSlot || !apptCustomerName || !apptCustomerPhone) return
+    try {
+      const res = await fetch(`${API_BASE}/appointments/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_name: apptCustomerName,
+          customer_phone: apptCustomerPhone,
+          service_type_id: selectedServiceForAppt.id,
+          barber_id: selectedBarberForAppt?.id || null,
+          scheduled_time: selectedSlot.datetime,
+          duration_minutes: selectedServiceForAppt.duration_minutes
+        })
+      })
+      if (res.ok) {
+        setShowAppointmentModal(false)
+        resetBookingForm()
+        loadAppointments()
+      }
+    } catch (e) {
+      console.error("Failed to book appointment:", e)
+    }
+  }
+
+  const cancelAppointment = async (id: number) => {
+    await fetch(`${API_BASE}/appointments/${id}`, { method: "DELETE" })
+    loadAppointments()
+  }
+
+  const resetBookingForm = () => {
+    setBookingStep("service")
+    setSelectedServiceForAppt(null)
+    setSelectedBarberForAppt(null)
+    setSelectedSlot(null)
+    setApptCustomerName("")
+    setApptCustomerPhone("")
+    setTimeSlots([])
   }
 
   const searchCustomers = useCallback(async (phone: string) => {
@@ -780,6 +880,239 @@ function App() {
     </div>
   )
 
+  // Appointment Booking Modal
+  const AppointmentModal = () => (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">📅 Book Appointment</h2>
+          <button onClick={() => { setShowAppointmentModal(false); resetBookingForm() }} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="flex gap-4 mb-6">
+          {["service", "time", "details"].map((step, i) => (
+            <div key={step} className={`flex-1 h-2 rounded ${
+              bookingStep === step ? "bg-blue-600" :
+              (step === "service" || (step === "time" && bookingStep === "details")) ? "bg-blue-300" : "bg-gray-200"
+            }`} />
+          ))}
+        </div>
+
+        {/* Step 1: Select Service */}
+        {bookingStep === "service" && (
+          <div>
+            <h3 className="font-semibold mb-4">Select Service</h3>
+            <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
+              {services.map(svc => (
+                <button
+                  key={svc.id}
+                  onClick={() => setSelectedServiceForAppt(svc)}
+                  className={`p-4 rounded-lg border-2 text-left transition ${
+                    selectedServiceForAppt?.id === svc.id
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-blue-300"
+                  }`}
+                >
+                  <div className="font-semibold">{svc.name}</div>
+                  <div className="text-sm text-gray-500">{svc.duration_minutes} min · ${svc.base_price}</div>
+                </button>
+              ))}
+            </div>
+            
+            <h3 className="font-semibold mt-6 mb-4">Preferred Barber (Optional)</h3>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setSelectedBarberForAppt(null)}
+                className={`px-4 py-2 rounded-lg ${!selectedBarberForAppt ? "bg-blue-600 text-white" : "bg-gray-100"}`}
+              >
+                Any
+              </button>
+              {barbers.map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => setSelectedBarberForAppt(b)}
+                  className={`px-4 py-2 rounded-lg ${selectedBarberForAppt?.id === b.id ? "bg-blue-600 text-white" : "bg-gray-100"}`}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => { setShowAppointmentModal(false); resetBookingForm() }} className="flex-1 py-3 bg-gray-200 rounded-lg font-semibold">Cancel</button>
+              <button
+                onClick={() => { setBookingStep("time"); loadTimeSlots() }}
+                disabled={!selectedServiceForAppt}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold disabled:bg-gray-300"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Select Time */}
+        {bookingStep === "time" && (
+          <div>
+            <h3 className="font-semibold mb-4">Select Date & Time</h3>
+            <input
+              type="date"
+              value={appointmentDate}
+              onChange={e => { setAppointmentDate(e.target.value); setTimeout(loadTimeSlots, 100) }}
+              className="w-full p-3 border rounded-lg mb-4"
+            />
+            
+            <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
+              {timeSlots.map(slot => (
+                <button
+                  key={slot.time}
+                  onClick={() => setSelectedSlot(slot)}
+                  className={`p-3 rounded-lg text-center ${
+                    selectedSlot?.time === slot.time
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 hover:bg-gray-200"
+                  }`}
+                >
+                  {slot.time}
+                </button>
+              ))}
+            </div>
+            
+            {timeSlots.length === 0 && (
+              <p className="text-center text-gray-500 py-8">No available slots for this date</p>
+            )}
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setBookingStep("service")} className="flex-1 py-3 bg-gray-200 rounded-lg font-semibold">Back</button>
+              <button
+                onClick={() => setBookingStep("details")}
+                disabled={!selectedSlot}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold disabled:bg-gray-300"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Customer Details */}
+        {bookingStep === "details" && (
+          <div>
+            <h3 className="font-semibold mb-4">Customer Information</h3>
+            
+            <div className="bg-blue-50 rounded-lg p-4 mb-4">
+              <p className="font-semibold">{selectedServiceForAppt?.name}</p>
+              <p className="text-sm text-gray-600">
+                {new Date(selectedSlot?.datetime || "").toLocaleString()} 
+                {selectedBarberForAppt && ` with ${selectedBarberForAppt.name}`}
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Customer Name *"
+                value={apptCustomerName}
+                onChange={e => setApptCustomerName(e.target.value)}
+                className="w-full p-3 border rounded-lg"
+              />
+              <input
+                type="tel"
+                placeholder="Phone Number *"
+                value={apptCustomerPhone}
+                onChange={e => setApptCustomerPhone(e.target.value)}
+                className="w-full p-3 border rounded-lg"
+              />
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setBookingStep("time")} className="flex-1 py-3 bg-gray-200 rounded-lg font-semibold">Back</button>
+              <button
+                onClick={bookAppointment}
+                disabled={!apptCustomerName || !apptCustomerPhone}
+                className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold disabled:bg-gray-300"
+              >
+                Book Appointment
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  // Appointments View
+  const AppointmentsView = () => (
+    <div className="max-w-6xl mx-auto">
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">📅 Appointments</h2>
+          <div className="flex items-center gap-4">
+            <input
+              type="date"
+              value={appointmentDate}
+              onChange={e => setAppointmentDate(e.target.value)}
+              className="px-4 py-2 border-2 rounded-lg"
+            />
+            <button
+              onClick={() => setShowAppointmentModal(true)}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
+            >
+              ➕ Book New
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {appointments.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center text-gray-500">
+          No appointments for this date
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {appointments.map(appt => (
+            <div key={appt.id} className={`bg-white rounded-xl shadow-lg p-6 border-l-4 ${
+              appt.status === "completed" ? "border-green-500" :
+              appt.status === "in_progress" ? "border-blue-500" :
+              appt.status === "cancelled" ? "border-red-500" : "border-yellow-500"
+            }`}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl font-bold">
+                      {new Date(appt.scheduled_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span className="font-semibold">{appt.customer_name}</span>
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                      appt.status === "completed" ? "bg-green-100 text-green-800" :
+                      appt.status === "in_progress" ? "bg-blue-100 text-blue-800" :
+                      appt.status === "cancelled" ? "bg-red-100 text-red-800" :
+                      "bg-yellow-100 text-yellow-800"
+                    }`}>
+                      {appt.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-gray-600">{appt.service_name} ({appt.duration_minutes} min)</p>
+                  {appt.barber_name && <p className="text-sm text-blue-600">Barber: {appt.barber_name}</p>}
+                  <p className="text-sm text-gray-500">{appt.customer_phone}</p>
+                </div>
+                {appt.status === "scheduled" && (
+                  <button
+                    onClick={() => cancelAppointment(appt.id)}
+                    className="px-4 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
   // Reports View
   const ReportsView = () => (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -1049,6 +1382,7 @@ function App() {
             {[
               { id: "pos", label: "✂️ POS" },
               { id: "queue", label: "📋 Queue" },
+              { id: "appointments", label: "📅 Appts" },
               { id: "orders", label: "📝 Orders" },
               { id: "reports", label: "📊 Reports" },
             ].map(tab => (
@@ -1072,6 +1406,7 @@ function App() {
       <main className={viewMode === "pos" ? "" : "p-6"}>
         {viewMode === "pos" && <POSView />}
         {viewMode === "queue" && <QueueView />}
+        {viewMode === "appointments" && <AppointmentsView />}
         {viewMode === "orders" && <OrdersView />}
         {viewMode === "reports" && <ReportsView />}
       </main>
@@ -1080,6 +1415,7 @@ function App() {
       {showPaymentModal && <PaymentModal />}
       {showNewCustomerModal && <NewCustomerModal />}
       {showWalkInModal && <WalkInModal />}
+      {showAppointmentModal && <AppointmentModal />}
     </div>
   )
 }
