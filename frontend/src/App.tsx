@@ -74,6 +74,7 @@ interface OrderServiceItem {
 interface OrderService {
   service: ServiceType
   quantity: number
+  notes?: string
 }
 
 interface Appointment {
@@ -482,7 +483,8 @@ function App() {
           barber_id: selectedBarber?.id || null,
           services: orderServices.map(os => ({
             service_type_id: os.service.id,
-            quantity: os.quantity
+            quantity: os.quantity,
+            notes: os.notes || null
           }))
         })
       })
@@ -1532,24 +1534,37 @@ function App() {
           ) : (
             <div className="space-y-3">
               {orderServices.map((os, index) => (
-                <div key={index} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                  <div className="flex-1">
-                    <div className="font-semibold">{os.service.name}</div>
-                    <div className="text-sm text-gray-500">
-                      ${os.service.base_price.toFixed(2)} × {os.quantity}
+                <div key={index} className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="font-semibold">{os.service.name}</div>
+                      <div className="text-sm text-gray-500">
+                        ${os.service.base_price.toFixed(2)} × {os.quantity}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold">
+                        ${(os.service.base_price * os.quantity).toFixed(2)}
+                      </span>
+                      <button
+                        onClick={() => removeService(index)}
+                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      >
+                        ✕
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold">
-                      ${(os.service.base_price * os.quantity).toFixed(2)}
-                    </span>
-                    <button
-                      onClick={() => removeService(index)}
-                      className="p-1 text-red-500 hover:bg-red-50 rounded"
-                    >
-                      ✕
-                    </button>
-                  </div>
+                  <input
+                    type="text"
+                    placeholder="Add notes (e.g., fade style, length)..."
+                    value={os.notes || ""}
+                    onChange={e => {
+                      const updated = [...orderServices]
+                      updated[index] = { ...os, notes: e.target.value }
+                      setOrderServices(updated)
+                    }}
+                    className="w-full mt-2 p-2 text-sm border rounded bg-white"
+                  />
                 </div>
               ))}
             </div>
