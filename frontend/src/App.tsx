@@ -157,6 +157,11 @@ function App() {
   // Barber management
   const [showBarberPanel, setShowBarberPanel] = useState(false)
 
+  // Customer profile
+  const [showCustomerProfile, setShowCustomerProfile] = useState(false)
+  const [customerProfile, setCustomerProfile] = useState<any>(null)
+  const [loadingProfile, setLoadingProfile] = useState(false)
+
   // Appointments
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [appointmentDate, setAppointmentDate] = useState(new Date().toISOString().split('T')[0])
@@ -339,6 +344,18 @@ function App() {
   const refreshBarbers = async () => {
     const data = await fetch(`${API_BASE}/barbers/available`).then(r => r.json())
     setBarbers(data)
+  }
+
+  const fetchCustomerProfile = async (customerId: number) => {
+    setLoadingProfile(true)
+    try {
+      const data = await fetch(`${API_BASE}/customers/${customerId}/history`).then(r => r.json())
+      setCustomerProfile(data)
+      setShowCustomerProfile(true)
+    } catch (e) {
+      console.error("Failed to load profile:", e)
+    }
+    setLoadingProfile(false)
   }
 
   const searchCustomers = useCallback(async (phone: string) => {
@@ -906,6 +923,118 @@ function App() {
     </div>
   )
 
+  // Customer Profile Modal
+  const CustomerProfileModal = () => {
+    if (!customerProfile) return null
+    const { customer: cust, stats, recent_visits } = customerProfile
+    
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-slate-700 p-6 rounded-t-2xl text-white">
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-bold">{cust.name}</h2>
+                <p className="text-blue-100">{cust.phone}</p>
+                {cust.email && <p className="text-blue-100 text-sm">{cust.email}</p>}
+              </div>
+              <button 
+                onClick={() => setShowCustomerProfile(false)}
+                className="text-white/80 hover:text-white text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+            {cust.preferred_cut && (
+              <div className="mt-3 bg-white/20 rounded-lg px-3 py-2 text-sm">
+                ✂️ Preferred: {cust.preferred_cut}
+              </div>
+            )}
+          </div>
+          
+          {/* Stats */}
+          <div className="grid grid-cols-4 gap-4 p-6 bg-gray-50">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600">{stats.total_visits}</div>
+              <div className="text-sm text-gray-500">Total Visits</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-green-600">${stats.total_spent.toFixed(0)}</div>
+              <div className="text-sm text-gray-500">Total Spent</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-purple-600">${stats.average_spend.toFixed(0)}</div>
+              <div className="text-sm text-gray-500">Avg per Visit</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-amber-600">${stats.average_tip.toFixed(0)}</div>
+              <div className="text-sm text-gray-500">Avg Tip</div>
+            </div>
+          </div>
+          
+          {/* Favorite Services */}
+          {stats.favorite_services.length > 0 && (
+            <div className="p-6 border-b">
+              <h3 className="font-bold text-gray-700 mb-3">💈 Favorite Services</h3>
+              <div className="flex flex-wrap gap-2">
+                {stats.favorite_services.map((s: any, i: number) => (
+                  <span key={i} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                    {s.name} ({s.count}x)
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Notes */}
+          {cust.notes && (
+            <div className="p-6 border-b">
+              <h3 className="font-bold text-gray-700 mb-2">📝 Notes</h3>
+              <p className="text-gray-600 bg-yellow-50 p-3 rounded-lg">{cust.notes}</p>
+            </div>
+          )}
+          
+          {/* Recent Visits */}
+          <div className="p-6">
+            <h3 className="font-bold text-gray-700 mb-3">🕐 Recent Visits</h3>
+            {recent_visits.length === 0 ? (
+              <p className="text-gray-400 text-center py-4">No visits yet</p>
+            ) : (
+              <div className="space-y-3">
+                {recent_visits.slice(0, 5).map((visit: any) => (
+                  <div key={visit.order_id} className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-sm text-gray-500">
+                        {new Date(visit.date).toLocaleDateString()} · Order #{visit.order_id}
+                      </span>
+                      <span className="font-bold text-green-600">${visit.total.toFixed(2)}</span>
+                    </div>
+                    <div className="text-sm">
+                      {visit.services.map((s: any, i: number) => (
+                        <span key={i} className="mr-2">{s.name}</span>
+                      ))}
+                    </div>
+                    {visit.tip > 0 && (
+                      <div className="text-xs text-gray-500 mt-1">Tip: ${visit.tip.toFixed(2)}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          {/* Footer */}
+          <div className="p-6 border-t bg-gray-50 rounded-b-2xl">
+            <p className="text-center text-sm text-gray-500">
+              Member since {new Date(cust.member_since).toLocaleDateString()}
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Barber Panel
   const BarberPanel = () => (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -1358,9 +1487,15 @@ function App() {
             </div>
             {customer && (
               <div className="mt-2 p-2 bg-blue-50 rounded-lg flex justify-between items-center">
-                <div>
+                <div className="flex items-center gap-2">
                   <span className="font-semibold">{customer.name}</span>
-                  <span className="text-sm text-gray-500 ml-2">{customer.phone}</span>
+                  <span className="text-sm text-gray-500">{customer.phone}</span>
+                  <button
+                    onClick={() => fetchCustomerProfile(customer.id)}
+                    className="text-blue-600 hover:text-blue-800 text-sm underline"
+                  >
+                    View History
+                  </button>
                 </div>
                 <button onClick={() => { setCustomer(null); setCustomerPhone("") }} className="text-red-500">✕</button>
               </div>
@@ -1502,6 +1637,7 @@ function App() {
       {showWalkInModal && <WalkInModal />}
       {showAppointmentModal && <AppointmentModal />}
       {showBarberPanel && <BarberPanel />}
+      {showCustomerProfile && <CustomerProfileModal />}
     </div>
   )
 }
