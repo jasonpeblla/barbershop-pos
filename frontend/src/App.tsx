@@ -695,46 +695,66 @@ function App() {
   if (completedOrder) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 p-8 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
-          <div className="text-6xl mb-4">💈</div>
-          <h1 className="text-3xl font-bold text-blue-600 mb-2">Thank You!</h1>
-          <p className="text-gray-500 mb-4">Order #{completedOrder.id}</p>
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center print-receipt">
+          {/* Receipt Header */}
+          <div className="text-4xl mb-2">💈</div>
+          <h2 className="text-xl font-bold">Classic Cuts Barbershop</h2>
+          <p className="text-sm text-gray-500">123 Main Street</p>
+          <p className="text-sm text-gray-500 mb-4">(555) 123-4567</p>
+          
+          <div className="border-t border-b py-2 mb-4">
+            <p className="text-sm text-gray-500">Order #{completedOrder.id}</p>
+            <p className="text-sm text-gray-500">{new Date().toLocaleString()}</p>
+            {customer && <p className="font-semibold">{customer.name}</p>}
+            {selectedBarber && <p className="text-sm text-blue-600">Barber: {selectedBarber.name}</p>}
+          </div>
 
-          <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+          <div className="text-left mb-4">
             {completedOrder.services.map((s, i) => (
-              <div key={i} className="flex justify-between py-1">
+              <div key={i} className="flex justify-between py-1 text-sm">
                 <span>{s.quantity}x {s.service_name}</span>
                 <span>${(s.unit_price * s.quantity).toFixed(2)}</span>
               </div>
             ))}
-            <div className="border-t mt-3 pt-3 space-y-1">
-              <div className="flex justify-between text-gray-600">
-                <span>Subtotal</span>
-                <span>${completedOrder.subtotal.toFixed(2)}</span>
+          </div>
+          
+          <div className="border-t pt-3 space-y-1 text-sm">
+            <div className="flex justify-between text-gray-600">
+              <span>Subtotal</span>
+              <span>${completedOrder.subtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>Tax (8.75%)</span>
+              <span>${completedOrder.tax.toFixed(2)}</span>
+            </div>
+            {completedOrder.tip > 0 && (
+              <div className="flex justify-between text-green-600">
+                <span>Tip (Thank you! 🙏)</span>
+                <span>${completedOrder.tip.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-gray-600">
-                <span>Tax</span>
-                <span>${completedOrder.tax.toFixed(2)}</span>
-              </div>
-              {completedOrder.tip > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>Tip</span>
-                  <span>${completedOrder.tip.toFixed(2)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-xl font-bold pt-2 border-t">
-                <span>Total</span>
-                <span>${completedOrder.total.toFixed(2)}</span>
-              </div>
+            )}
+            <div className="flex justify-between text-xl font-bold pt-2 border-t">
+              <span>TOTAL</span>
+              <span>${completedOrder.total.toFixed(2)}</span>
             </div>
           </div>
+          
+          <p className="text-center mt-4 text-sm text-gray-500">Thanks for visiting! See you next time!</p>
 
-          <button
-            onClick={newOrder}
-            className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700"
-          >
-            Next Customer
-          </button>
+          <div className="flex gap-3 mt-6 no-print">
+            <button
+              onClick={() => window.print()}
+              className="flex-1 py-4 bg-gray-200 rounded-xl font-bold text-lg hover:bg-gray-300"
+            >
+              🖨️ Print
+            </button>
+            <button
+              onClick={newOrder}
+              className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700"
+            >
+              Next Customer
+            </button>
+          </div>
         </div>
       </div>
     )
