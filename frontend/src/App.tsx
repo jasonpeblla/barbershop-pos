@@ -163,6 +163,12 @@ function App() {
   const [customerProfile, setCustomerProfile] = useState<any>(null)
   const [loadingProfile, setLoadingProfile] = useState(false)
 
+  // Cash drawer
+  const [showCashDrawer, setShowCashDrawer] = useState(false)
+  const [drawerStatus, setDrawerStatus] = useState<any>(null)
+  const [cashAmount, setCashAmount] = useState("")
+  const [cashNote, setCashNote] = useState("")
+
   // Appointments
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [appointmentDate, setAppointmentDate] = useState(new Date().toISOString().split('T')[0])
@@ -359,6 +365,53 @@ function App() {
     setLoadingProfile(false)
   }
 
+  const loadDrawerStatus = async () => {
+    const data = await fetch(`${API_BASE}/cash-drawer/status`).then(r => r.json())
+    setDrawerStatus(data)
+  }
+
+  const openDrawer = async () => {
+    const amount = parseFloat(cashAmount) || 200
+    await fetch(`${API_BASE}/cash-drawer/open`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ starting_cash: amount })
+    })
+    loadDrawerStatus()
+    setCashAmount("")
+  }
+
+  const closeDrawer = async () => {
+    await fetch(`${API_BASE}/cash-drawer/close`, { method: "POST" })
+    loadDrawerStatus()
+  }
+
+  const addCash = async () => {
+    const amount = parseFloat(cashAmount)
+    if (!amount) return
+    await fetch(`${API_BASE}/cash-drawer/add`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount, note: cashNote || null })
+    })
+    loadDrawerStatus()
+    setCashAmount("")
+    setCashNote("")
+  }
+
+  const removeCash = async () => {
+    const amount = parseFloat(cashAmount)
+    if (!amount) return
+    await fetch(`${API_BASE}/cash-drawer/remove`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount, note: cashNote || null })
+    })
+    loadDrawerStatus()
+    setCashAmount("")
+    setCashNote("")
+  }
+
   const searchCustomers = useCallback(async (phone: string) => {
     if (phone.length < 3) {
       setCustomers([])
@@ -503,6 +556,18 @@ function App() {
           method: paymentMethod
         })
       })
+
+      // Record cash sale if paid in cash
+      if (paymentMethod === "cash") {
+        await fetch(`${API_BASE}/cash-drawer/sale`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: subtotal + tax + tip,
+            note: `Order #${orderData.id}`
+          })
+        })
+      }
 
       // Get updated order
       const updated = await fetch(`${API_BASE}/orders/${orderData.id}`).then(r => r.json())
@@ -922,6 +987,119 @@ function App() {
           </table>
         </div>
       )}
+    </div>
+  )
+
+  // Cash Drawer Modal
+  const CashDrawerModal = () => (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">💰 Cash Drawer</h2>
+          <button onClick={() => setShowCashDrawer(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        
+        {drawerStatus && (
+          <>
+            <div className={`p-4 rounded-lg mb-6 ${drawerStatus.is_open ? "bg-green-50" : "bg-gray-50"}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`w-3 h-3 rounded-full ${drawerStatus.is_open ? "bg-green-500" : "bg-gray-400"}`}></span>
+                <span className="font-semibold">{drawerStatus.is_open ? "Drawer Open" : "Drawer Closed"}</span>
+              </div>
+              
+              {drawerStatus.is_open && (
+                <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
+                  <div>
+                    <div className="text-gray-500">Starting</div>
+                    <div className="font-bold">${drawerStatus.starting_cash.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Cash Sales</div>
+                    <div className="font-bold text-green-600">${drawerStatus.cash_sales.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Added</div>
+                    <div className="font-bold text-blue-600">+${drawerStatus.cash_added.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Removed</div>
+                    <div className="font-bold text-red-600">-${drawerStatus.cash_removed.toFixed(2)}</div>
+                  </div>
+                </div>
+              )}
+              
+              {drawerStatus.is_open && (
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Current Cash</span>
+                    <span className="text-2xl font-bold text-green-600">${drawerStatus.current_cash.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {!drawerStatus.is_open ? (
+              <div>
+                <label className="text-sm font-semibold text-gray-600">Starting Cash</label>
+                <input
+                  type="number"
+                  placeholder="200.00"
+                  value={cashAmount}
+                  onChange={e => setCashAmount(e.target.value)}
+                  className="w-full p-3 border rounded-lg mb-4"
+                />
+                <button
+                  onClick={openDrawer}
+                  className="w-full py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700"
+                >
+                  Open Drawer
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    value={cashAmount}
+                    onChange={e => setCashAmount(e.target.value)}
+                    className="flex-1 p-3 border rounded-lg"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Note (optional)"
+                    value={cashNote}
+                    onChange={e => setCashNote(e.target.value)}
+                    className="flex-1 p-3 border rounded-lg"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={addCash}
+                    disabled={!cashAmount}
+                    className="py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300"
+                  >
+                    + Add Cash
+                  </button>
+                  <button
+                    onClick={removeCash}
+                    disabled={!cashAmount}
+                    className="py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 disabled:bg-gray-300"
+                  >
+                    - Remove Cash
+                  </button>
+                </div>
+                <button
+                  onClick={closeDrawer}
+                  className="w-full py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700"
+                >
+                  Close & Reconcile
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 
@@ -1608,6 +1786,13 @@ function App() {
           <h1 className="text-2xl font-bold">💈 Barbershop POS</h1>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => { loadDrawerStatus(); setShowCashDrawer(true) }}
+              className="px-3 py-2 bg-slate-700 rounded-lg hover:bg-slate-600"
+              title="Cash Drawer"
+            >
+              💰
+            </button>
+            <button
               onClick={() => { refreshBarbers(); setShowBarberPanel(true) }}
               className="px-3 py-2 bg-slate-700 rounded-lg hover:bg-slate-600 mr-4"
               title="Barber Management"
@@ -1653,6 +1838,7 @@ function App() {
       {showAppointmentModal && <AppointmentModal />}
       {showBarberPanel && <BarberPanel />}
       {showCustomerProfile && <CustomerProfileModal />}
+      {showCashDrawer && <CashDrawerModal />}
     </div>
   )
 }

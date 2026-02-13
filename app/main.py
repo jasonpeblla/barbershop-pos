@@ -13,6 +13,7 @@ from app.routers import (
     queue,
     appointments,
     reports,
+    cash_drawer,
 )
 
 # Seed data for barbershop services
@@ -111,6 +112,7 @@ app.include_router(payments.router)
 app.include_router(queue.router)
 app.include_router(appointments.router)
 app.include_router(reports.router)
+app.include_router(cash_drawer.router)
 
 
 @app.get("/health")
