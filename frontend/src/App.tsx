@@ -97,7 +97,21 @@ interface TimeSlot {
   available: boolean
 }
 
-type ViewMode = "pos" | "queue" | "appointments" | "orders" | "reports"
+interface Product {
+  id: number
+  name: string
+  category: string
+  price: number
+  stock: number
+  sku?: string
+}
+
+interface CartProduct {
+  product: Product
+  quantity: number
+}
+
+type ViewMode = "pos" | "queue" | "appointments" | "orders" | "shop" | "reports"
 
 const CATEGORIES = [
   { id: "haircut", label: "✂️ Haircuts", color: "blue" },
@@ -169,6 +183,12 @@ function App() {
   const [cashAmount, setCashAmount] = useState("")
   const [cashNote, setCashNote] = useState("")
 
+  // Products
+  const [products, setProducts] = useState<Product[]>([])
+  const [productCart, setProductCart] = useState<CartProduct[]>([])
+  const [selectedProductCategory, setSelectedProductCategory] = useState("styling")
+  const [showProductCheckout, setShowProductCheckout] = useState(false)
+
   // Appointments
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [appointmentDate, setAppointmentDate] = useState(new Date().toISOString().split('T')[0])
@@ -230,6 +250,13 @@ function App() {
       loadAppointments()
     }
   }, [viewMode, appointmentDate])
+
+  // Load products
+  useEffect(() => {
+    if (viewMode === "shop") {
+      loadProducts()
+    }
+  }, [viewMode])
 
   const loadQueue = async () => {
     try {
@@ -410,6 +437,47 @@ function App() {
     loadDrawerStatus()
     setCashAmount("")
     setCashNote("")
+  }
+
+  const loadProducts = async () => {
+    const data = await fetch(`${API_BASE}/products/`).then(r => r.json())
+    setProducts(data)
+  }
+
+  const addToProductCart = (product: Product) => {
+    const existing = productCart.find(cp => cp.product.id === product.id)
+    if (existing) {
+      setProductCart(productCart.map(cp =>
+        cp.product.id === product.id ? { ...cp, quantity: cp.quantity + 1 } : cp
+      ))
+    } else {
+      setProductCart([...productCart, { product, quantity: 1 }])
+    }
+  }
+
+  const removeFromProductCart = (index: number) => {
+    setProductCart(productCart.filter((_, i) => i !== index))
+  }
+
+  const productSubtotal = productCart.reduce(
+    (sum, cp) => sum + cp.product.price * cp.quantity,
+    0
+  )
+  const productTax = productSubtotal * 0.0875
+  const productTotal = productSubtotal + productTax
+
+  const processProductSale = async () => {
+    await fetch(`${API_BASE}/products/sell`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(productCart.map(cp => ({
+        product_id: cp.product.id,
+        quantity: cp.quantity
+      })))
+    })
+    setProductCart([])
+    setShowProductCheckout(false)
+    loadProducts()
   }
 
   const searchCustomers = useCallback(async (phone: string) => {
@@ -1500,6 +1568,139 @@ function App() {
     </div>
   )
 
+  // Product Checkout Modal
+  const ProductCheckoutModal = () => (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+        <h2 className="text-2xl font-bold mb-6">🛍️ Product Sale</h2>
+        
+        <div className="space-y-3 mb-6 max-h-60 overflow-y-auto">
+          {productCart.map((cp, i) => (
+            <div key={i} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+              <div>
+                <div className="font-semibold">{cp.product.name}</div>
+                <div className="text-sm text-gray-500">${cp.product.price} × {cp.quantity}</div>
+              </div>
+              <span className="font-bold">${(cp.product.price * cp.quantity).toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+        
+        <div className="border-t pt-4 space-y-2">
+          <div className="flex justify-between">
+            <span>Subtotal</span>
+            <span>${productSubtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Tax</span>
+            <span>${productTax.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-xl font-bold">
+            <span>Total</span>
+            <span className="text-green-600">${productTotal.toFixed(2)}</span>
+          </div>
+        </div>
+        
+        <div className="flex gap-3 mt-6">
+          <button onClick={() => setShowProductCheckout(false)} className="flex-1 py-3 bg-gray-200 rounded-lg font-bold">Cancel</button>
+          <button onClick={processProductSale} className="flex-1 py-3 bg-green-600 text-white rounded-lg font-bold">Complete Sale</button>
+        </div>
+      </div>
+    </div>
+  )
+
+  // Shop View
+  const ShopView = () => {
+    const PRODUCT_CATEGORIES = [
+      { id: "styling", label: "💇 Styling" },
+      { id: "beard", label: "🧔 Beard" },
+      { id: "haircare", label: "🧴 Hair Care" },
+      { id: "shaving", label: "🪒 Shaving" },
+      { id: "tools", label: "✂️ Tools" },
+    ]
+    
+    const filteredProducts = products.filter(p => p.category === selectedProductCategory)
+    
+    return (
+      <div className="flex h-[calc(100vh-80px)]">
+        {/* Products Grid */}
+        <div className="flex-1 flex flex-col bg-gray-50">
+          <div className="flex gap-2 p-4 bg-white border-b overflow-x-auto">
+            {PRODUCT_CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedProductCategory(cat.id)}
+                className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap ${
+                  selectedProductCategory === cat.id ? "bg-blue-600 text-white" : "bg-gray-100"
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+          
+          <div className="flex-1 overflow-auto p-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filteredProducts.map(product => (
+                <button
+                  key={product.id}
+                  onClick={() => addToProductCart(product)}
+                  disabled={product.stock === 0}
+                  className={`bg-white rounded-xl shadow p-4 text-left hover:shadow-lg transition ${
+                    product.stock === 0 ? "opacity-50" : "border-2 border-transparent hover:border-blue-300"
+                  }`}
+                >
+                  <h3 className="font-bold text-gray-800">{product.name}</h3>
+                  <p className="text-sm text-gray-500">Stock: {product.stock}</p>
+                  <p className="text-xl font-bold text-green-600 mt-2">${product.price.toFixed(2)}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {/* Cart */}
+        <div className="w-80 bg-white border-l flex flex-col">
+          <div className="p-4 border-b">
+            <h2 className="text-xl font-bold">🛒 Cart</h2>
+          </div>
+          
+          <div className="flex-1 overflow-auto p-4">
+            {productCart.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">Cart is empty</p>
+            ) : (
+              <div className="space-y-3">
+                {productCart.map((cp, i) => (
+                  <div key={i} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                    <div>
+                      <div className="font-semibold">{cp.product.name}</div>
+                      <div className="text-sm text-gray-500">${cp.product.price} × {cp.quantity}</div>
+                    </div>
+                    <button onClick={() => removeFromProductCart(i)} className="text-red-500">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="p-4 border-t bg-gray-50">
+            <div className="flex justify-between text-xl font-bold mb-4">
+              <span>Total</span>
+              <span>${productSubtotal.toFixed(2)}</span>
+            </div>
+            <button
+              onClick={() => setShowProductCheckout(true)}
+              disabled={productCart.length === 0}
+              className="w-full py-4 bg-green-600 text-white rounded-xl font-bold disabled:bg-gray-300"
+            >
+              Checkout
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Reports View
   const ReportsView = () => (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -1804,6 +2005,7 @@ function App() {
               { id: "queue", label: "📋 Queue" },
               { id: "appointments", label: "📅 Appts" },
               { id: "orders", label: "📝 Orders" },
+              { id: "shop", label: "🛍️ Shop" },
               { id: "reports", label: "📊 Reports" },
             ].map(tab => (
               <button
@@ -1828,6 +2030,7 @@ function App() {
         {viewMode === "queue" && <QueueView />}
         {viewMode === "appointments" && <AppointmentsView />}
         {viewMode === "orders" && <OrdersView />}
+        {viewMode === "shop" && <ShopView />}
         {viewMode === "reports" && <ReportsView />}
       </main>
 
@@ -1839,6 +2042,7 @@ function App() {
       {showBarberPanel && <BarberPanel />}
       {showCustomerProfile && <CustomerProfileModal />}
       {showCashDrawer && <CashDrawerModal />}
+      {showProductCheckout && <ProductCheckoutModal />}
     </div>
   )
 }
