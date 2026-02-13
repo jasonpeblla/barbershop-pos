@@ -154,6 +154,9 @@ function App() {
   const [dailyReport, setDailyReport] = useState<any>(null)
   const [earningsReport, setEarningsReport] = useState<any>(null)
 
+  // Barber management
+  const [showBarberPanel, setShowBarberPanel] = useState(false)
+
   // Appointments
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [appointmentDate, setAppointmentDate] = useState(new Date().toISOString().split('T')[0])
@@ -313,6 +316,29 @@ function App() {
     setApptCustomerName("")
     setApptCustomerPhone("")
     setTimeSlots([])
+  }
+
+  const clockIn = async (barberId: number) => {
+    try {
+      await fetch(`${API_BASE}/barbers/${barberId}/clock-in`, { method: "POST" })
+      refreshBarbers()
+    } catch (e) {
+      console.error("Clock in failed:", e)
+    }
+  }
+
+  const clockOut = async (barberId: number) => {
+    try {
+      await fetch(`${API_BASE}/barbers/${barberId}/clock-out`, { method: "POST" })
+      refreshBarbers()
+    } catch (e) {
+      console.error("Clock out failed:", e)
+    }
+  }
+
+  const refreshBarbers = async () => {
+    const data = await fetch(`${API_BASE}/barbers/available`).then(r => r.json())
+    setBarbers(data)
   }
 
   const searchCustomers = useCallback(async (phone: string) => {
@@ -880,6 +906,58 @@ function App() {
     </div>
   )
 
+  // Barber Panel
+  const BarberPanel = () => (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">👔 Barber Management</h2>
+          <button onClick={() => setShowBarberPanel(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        
+        <div className="space-y-4">
+          {barbers.map(b => (
+            <div key={b.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
+              <div>
+                <div className="font-semibold text-lg">{b.name}</div>
+                <div className="flex items-center gap-2 text-sm">
+                  {b.is_clocked_in ? (
+                    <span className="text-green-600 flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      Clocked In
+                    </span>
+                  ) : (
+                    <span className="text-gray-500">Not clocked in</span>
+                  )}
+                  {b.active_orders && b.active_orders > 0 && (
+                    <span className="text-blue-600">· {b.active_orders} active</span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => b.is_clocked_in ? clockOut(b.id) : clockIn(b.id)}
+                className={`px-4 py-2 rounded-lg font-semibold ${
+                  b.is_clocked_in
+                    ? "bg-red-100 text-red-600 hover:bg-red-200"
+                    : "bg-green-100 text-green-600 hover:bg-green-200"
+                }`}
+              >
+                {b.is_clocked_in ? "Clock Out" : "Clock In"}
+              </button>
+            </div>
+          ))}
+        </div>
+        
+        <button
+          onClick={() => setShowBarberPanel(false)}
+          className="w-full mt-6 py-3 bg-gray-200 rounded-lg font-semibold hover:bg-gray-300"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  )
+
   // Appointment Booking Modal
   const AppointmentModal = () => (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -1378,7 +1456,14 @@ function App() {
       <nav className="bg-slate-800 text-white p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <h1 className="text-2xl font-bold">💈 Barbershop POS</h1>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { refreshBarbers(); setShowBarberPanel(true) }}
+              className="px-3 py-2 bg-slate-700 rounded-lg hover:bg-slate-600 mr-4"
+              title="Barber Management"
+            >
+              👔 Staff
+            </button>
             {[
               { id: "pos", label: "✂️ POS" },
               { id: "queue", label: "📋 Queue" },
@@ -1416,6 +1501,7 @@ function App() {
       {showNewCustomerModal && <NewCustomerModal />}
       {showWalkInModal && <WalkInModal />}
       {showAppointmentModal && <AppointmentModal />}
+      {showBarberPanel && <BarberPanel />}
     </div>
   )
 }
