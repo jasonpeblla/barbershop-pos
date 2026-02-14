@@ -22,6 +22,7 @@ from app.routers import (
     discounts,
     schedules,
     recurring,
+    memberships,
 )
 
 # Seed data for barbershop services
@@ -129,6 +130,7 @@ app.include_router(packages.router)
 app.include_router(discounts.router)
 app.include_router(schedules.router)
 app.include_router(recurring.router)
+app.include_router(memberships.router)
 
 
 @app.get("/health")

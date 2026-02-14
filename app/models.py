@@ -384,6 +384,40 @@ class BarberBreak(Base):
     barber = relationship("Barber")
 
 
+class MembershipPlan(Base):
+    """Monthly membership plans"""
+    __tablename__ = "membership_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    monthly_price = Column(Float, nullable=False)
+    haircuts_included = Column(Integer, default=0)  # 0 = unlimited
+    discount_percent = Column(Integer, default=0)  # Discount on additional services
+    priority_booking = Column(Boolean, default=False)
+    free_products_monthly = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CustomerMembership(Base):
+    """Customer membership subscriptions"""
+    __tablename__ = "customer_memberships"
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    plan_id = Column(Integer, ForeignKey("membership_plans.id"), nullable=False)
+    status = Column(String(20), default="active")  # active, paused, cancelled, expired
+    start_date = Column(DateTime, default=datetime.utcnow)
+    next_billing_date = Column(DateTime, nullable=True)
+    cancelled_at = Column(DateTime, nullable=True)
+    haircuts_used_this_month = Column(Integer, default=0)
+    last_reset_date = Column(DateTime, nullable=True)
+
+    customer = relationship("Customer")
+    plan = relationship("MembershipPlan")
+
+
 class Product(Base):
     """Retail products for sale"""
     __tablename__ = "products"
