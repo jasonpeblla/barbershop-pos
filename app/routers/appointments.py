@@ -226,3 +226,116 @@ def get_todays_appointments(db: Session = Depends(get_db)):
     """Get all appointments for today"""
     today = date.today()
     return list_appointments(date=today.isoformat(), db=db)
+
+
+@router.post("/{appointment_id}/confirm")
+def confirm_appointment(appointment_id: int, db: Session = Depends(get_db)):
+    """Confirm an appointment"""
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    if appointment.status not in ["scheduled"]:
+        raise HTTPException(status_code=400, detail=f"Cannot confirm appointment with status: {appointment.status}")
+    
+    appointment.status = "confirmed"
+    db.commit()
+    
+    return {"message": "Appointment confirmed", "status": "confirmed"}
+
+
+@router.post("/{appointment_id}/check-in")
+def check_in_appointment(appointment_id: int, db: Session = Depends(get_db)):
+    """Mark customer as arrived for their appointment"""
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    if appointment.status not in ["scheduled", "confirmed"]:
+        raise HTTPException(status_code=400, detail=f"Cannot check in appointment with status: {appointment.status}")
+    
+    appointment.status = "checked_in"
+    db.commit()
+    
+    return {"message": "Customer checked in", "status": "checked_in"}
+
+
+@router.post("/{appointment_id}/start")
+def start_appointment(appointment_id: int, db: Session = Depends(get_db)):
+    """Start service for an appointment"""
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    if appointment.status not in ["scheduled", "confirmed", "checked_in"]:
+        raise HTTPException(status_code=400, detail=f"Cannot start appointment with status: {appointment.status}")
+    
+    appointment.status = "in_progress"
+    db.commit()
+    
+    return {"message": "Service started", "status": "in_progress"}
+
+
+@router.post("/{appointment_id}/complete")
+def complete_appointment(appointment_id: int, db: Session = Depends(get_db)):
+    """Complete an appointment"""
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    if appointment.status not in ["in_progress"]:
+        raise HTTPException(status_code=400, detail=f"Cannot complete appointment with status: {appointment.status}")
+    
+    appointment.status = "completed"
+    db.commit()
+    
+    return {"message": "Appointment completed", "status": "completed"}
+
+
+@router.post("/{appointment_id}/no-show")
+def mark_no_show(appointment_id: int, db: Session = Depends(get_db)):
+    """Mark appointment as no-show"""
+    appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    appointment.status = "no_show"
+    db.commit()
+    
+    return {"message": "Marked as no-show", "status": "no_show"}
+
+
+@router.get("/upcoming")
+def get_upcoming_appointments(hours: int = 2, db: Session = Depends(get_db)):
+    """Get appointments coming up in the next N hours"""
+    now = datetime.now()
+    cutoff = now + timedelta(hours=hours)
+    
+    appointments = db.query(Appointment).filter(
+        Appointment.scheduled_time >= now,
+        Appointment.scheduled_time <= cutoff,
+        Appointment.status.in_(["scheduled", "confirmed"])
+    ).order_by(Appointment.scheduled_time).all()
+    
+    result = []
+    for appt in appointments:
+        barber_name = None
+        if appt.barber_id:
+            barber = db.query(Barber).filter(Barber.id == appt.barber_id).first()
+            if barber:
+                barber_name = barber.name
+        
+        service = db.query(ServiceType).filter(ServiceType.id == appt.service_type_id).first()
+        
+        result.append({
+            "id": appt.id,
+            "customer_name": appt.customer_name,
+            "customer_phone": appt.customer_phone,
+            "barber_name": barber_name,
+            "service_name": service.name if service else "Unknown",
+            "scheduled_time": appt.scheduled_time,
+            "minutes_until": int((appt.scheduled_time - now).total_seconds() / 60),
+            "status": appt.status
+        })
+    
+    return result
