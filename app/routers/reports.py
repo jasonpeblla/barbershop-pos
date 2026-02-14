@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, date, timedelta
@@ -614,4 +614,221 @@ def set_default_daily_target(amount: float, db: Session = Depends(get_db)):
         "message": f"Created {created} daily targets",
         "daily_amount": amount,
         "period": f"{today.isoformat()} to {(today + timedelta(days=29)).isoformat()}"
+    }
+
+
+# ===== STAFF PERFORMANCE METRICS =====
+
+@router.get("/performance/{barber_id}/detailed")
+def get_detailed_performance(barber_id: int, days: int = 30, db: Session = Depends(get_db)):
+    """Get detailed performance metrics for a barber"""
+    from app.models import WalkInQueue, TimeClock
+    
+    barber = db.query(Barber).filter(Barber.id == barber_id).first()
+    if not barber:
+        raise HTTPException(status_code=404, detail="Barber not found")
+    
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days)
+    
+    # Orders in period
+    orders = db.query(Order).filter(
+        Order.barber_id == barber_id,
+        Order.status == "completed",
+        func.date(Order.completed_at) >= start_date
+    ).all()
+    
+    # Calculate metrics
+    total_revenue = sum(o.subtotal for o in orders)
+    total_tips = sum(o.tip or 0 for o in orders)
+    num_services = len(orders)
+    
+    # Average service time
+    service_times = []
+    for o in orders:
+        if o.started_at and o.completed_at:
+            duration = (o.completed_at - o.started_at).total_seconds() / 60
+            if duration > 0 and duration < 180:  # Reasonable range
+                service_times.append(duration)
+    
+    avg_service_time = sum(service_times) / len(service_times) if service_times else 0
+    
+    # Tip percentage
+    avg_tip_pct = (total_tips / total_revenue * 100) if total_revenue > 0 else 0
+    
+    # Hours worked
+    timeclock_entries = db.query(TimeClock).filter(
+        TimeClock.barber_id == barber_id,
+        func.date(TimeClock.clock_in) >= start_date
+    ).all()
+    
+    total_hours = sum(
+        (e.clock_out - e.clock_in).total_seconds() / 3600
+        for e in timeclock_entries
+        if e.clock_out
+    )
+    
+    # Revenue per hour
+    revenue_per_hour = total_revenue / total_hours if total_hours > 0 else 0
+    
+    # Service breakdown
+    service_counts = {}
+    for o in orders:
+        for os in o.services:
+            service = db.query(ServiceType).filter(ServiceType.id == os.service_type_id).first()
+            if service:
+                if service.name not in service_counts:
+                    service_counts[service.name] = {"count": 0, "revenue": 0}
+                service_counts[service.name]["count"] += os.quantity
+                service_counts[service.name]["revenue"] += os.unit_price * os.quantity
+    
+    # Daily breakdown
+    daily_stats = {}
+    for o in orders:
+        day = o.completed_at.date().isoformat()
+        if day not in daily_stats:
+            daily_stats[day] = {"services": 0, "revenue": 0, "tips": 0}
+        daily_stats[day]["services"] += 1
+        daily_stats[day]["revenue"] += o.subtotal
+        daily_stats[day]["tips"] += o.tip or 0
+    
+    return {
+        "barber": {
+            "id": barber.id,
+            "name": barber.name,
+            "commission_rate": barber.commission_rate
+        },
+        "period": {
+            "start": start_date.isoformat(),
+            "end": end_date.isoformat(),
+            "days": days
+        },
+        "metrics": {
+            "total_services": num_services,
+            "total_revenue": round(total_revenue, 2),
+            "total_tips": round(total_tips, 2),
+            "total_earnings": round(total_revenue * barber.commission_rate + total_tips, 2),
+            "avg_ticket": round(total_revenue / num_services, 2) if num_services > 0 else 0,
+            "avg_tip_percent": round(avg_tip_pct, 1),
+            "avg_service_time_minutes": round(avg_service_time, 1),
+            "total_hours_worked": round(total_hours, 1),
+            "revenue_per_hour": round(revenue_per_hour, 2),
+            "services_per_day": round(num_services / days, 1)
+        },
+        "service_breakdown": dict(sorted(service_counts.items(), key=lambda x: x[1]["count"], reverse=True)),
+        "daily_stats": dict(sorted(daily_stats.items(), reverse=True)[:7])
+    }
+
+
+@router.get("/performance/comparison")
+def compare_barber_performance(days: int = 30, db: Session = Depends(get_db)):
+    """Compare performance across all barbers"""
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days)
+    
+    barbers = db.query(Barber).filter(Barber.is_active == True).all()
+    
+    comparison = []
+    for barber in barbers:
+        orders = db.query(Order).filter(
+            Order.barber_id == barber.id,
+            Order.status == "completed",
+            func.date(Order.completed_at) >= start_date
+        ).all()
+        
+        revenue = sum(o.subtotal for o in orders)
+        tips = sum(o.tip or 0 for o in orders)
+        services = len(orders)
+        
+        comparison.append({
+            "barber_id": barber.id,
+            "name": barber.name,
+            "services": services,
+            "revenue": round(revenue, 2),
+            "tips": round(tips, 2),
+            "avg_ticket": round(revenue / services, 2) if services > 0 else 0,
+            "tip_percent": round(tips / revenue * 100, 1) if revenue > 0 else 0
+        })
+    
+    # Calculate rankings
+    revenue_rank = sorted(comparison, key=lambda x: x["revenue"], reverse=True)
+    services_rank = sorted(comparison, key=lambda x: x["services"], reverse=True)
+    tips_rank = sorted(comparison, key=lambda x: x["tip_percent"], reverse=True)
+    
+    for i, b in enumerate(revenue_rank):
+        b["revenue_rank"] = i + 1
+    for i, b in enumerate(services_rank):
+        next((c for c in comparison if c["barber_id"] == b["barber_id"]), {})["services_rank"] = i + 1
+    for i, b in enumerate(tips_rank):
+        next((c for c in comparison if c["barber_id"] == b["barber_id"]), {})["tips_rank"] = i + 1
+    
+    return {
+        "period_days": days,
+        "barbers": sorted(comparison, key=lambda x: x["revenue"], reverse=True),
+        "team_totals": {
+            "total_services": sum(b["services"] for b in comparison),
+            "total_revenue": round(sum(b["revenue"] for b in comparison), 2),
+            "total_tips": round(sum(b["tips"] for b in comparison), 2)
+        }
+    }
+
+
+@router.get("/performance/efficiency")
+def get_efficiency_metrics(db: Session = Depends(get_db)):
+    """Get shop efficiency metrics"""
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    
+    # This week's orders
+    orders = db.query(Order).filter(
+        Order.status == "completed",
+        func.date(Order.completed_at) >= week_start
+    ).all()
+    
+    # Calculate service efficiency
+    total_services = len(orders)
+    total_service_time = 0
+    total_wait_time = 0
+    
+    for o in orders:
+        if o.started_at and o.completed_at:
+            service_duration = (o.completed_at - o.started_at).total_seconds() / 60
+            total_service_time += service_duration
+        
+        if o.created_at and o.started_at:
+            wait_duration = (o.started_at - o.created_at).total_seconds() / 60
+            if wait_duration > 0 and wait_duration < 120:  # Reasonable range
+                total_wait_time += wait_duration
+    
+    avg_service_time = total_service_time / total_services if total_services > 0 else 0
+    avg_wait_time = total_wait_time / total_services if total_services > 0 else 0
+    
+    # Active barber hours
+    from app.models import TimeClock
+    timeclock = db.query(TimeClock).filter(
+        func.date(TimeClock.clock_in) >= week_start
+    ).all()
+    
+    total_labor_hours = sum(
+        (t.clock_out - t.clock_in).total_seconds() / 3600
+        for t in timeclock
+        if t.clock_out
+    )
+    
+    # Revenue
+    total_revenue = sum(o.subtotal for o in orders)
+    
+    return {
+        "period": f"{week_start.isoformat()} to {today.isoformat()}",
+        "efficiency": {
+            "avg_service_time_minutes": round(avg_service_time, 1),
+            "avg_wait_time_minutes": round(avg_wait_time, 1),
+            "services_per_labor_hour": round(total_services / total_labor_hours, 2) if total_labor_hours > 0 else 0,
+            "revenue_per_labor_hour": round(total_revenue / total_labor_hours, 2) if total_labor_hours > 0 else 0
+        },
+        "totals": {
+            "services": total_services,
+            "revenue": round(total_revenue, 2),
+            "labor_hours": round(total_labor_hours, 1)
+        }
     }
