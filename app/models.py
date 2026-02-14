@@ -69,6 +69,8 @@ class ServiceType(Base):
     name = Column(String, index=True)
     category = Column(String, index=True)  # haircut, beard, combo, addon
     base_price = Column(Float)
+    peak_price = Column(Float, nullable=True)  # Weekend/evening price
+    off_peak_price = Column(Float, nullable=True)  # Discounted early/weekday price
     duration_minutes = Column(Integer, default=30)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
