@@ -340,3 +340,36 @@ class BarberDayOff(Base):
     reason = Column(String(255), nullable=True)
 
     barber = relationship("Barber")
+
+
+class Product(Base):
+    """Retail products for sale"""
+    __tablename__ = "products"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    category = Column(String(50), nullable=True)  # pomade, shampoo, beard oil, etc.
+    sku = Column(String(50), unique=True, nullable=True)
+    barcode = Column(String(50), nullable=True)
+    price = Column(Float, nullable=False)
+    cost = Column(Float, default=0.0)  # Cost to shop for profit tracking
+    stock_quantity = Column(Integer, default=0)
+    low_stock_threshold = Column(Integer, default=5)
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class InventoryTransaction(Base):
+    """Track inventory changes"""
+    __tablename__ = "inventory_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    quantity_change = Column(Integer, nullable=False)  # positive = add, negative = remove
+    transaction_type = Column(String(50), nullable=False)  # restock, sale, adjustment, damaged, returned
+    notes = Column(Text, nullable=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    product = relationship("Product")
