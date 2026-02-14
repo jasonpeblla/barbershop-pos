@@ -177,6 +177,11 @@ function App() {
   const [customerProfile, setCustomerProfile] = useState<any>(null)
   const [loadingProfile, setLoadingProfile] = useState(false)
 
+  // Loyalty points
+  const [loyaltyBalance, setLoyaltyBalance] = useState<any>(null)
+  const [redeemingPoints, setRedeemingPoints] = useState(false)
+  const [pointsToRedeem, setPointsToRedeem] = useState("")
+
   // Cash drawer
   const [showCashDrawer, setShowCashDrawer] = useState(false)
   const [drawerStatus, setDrawerStatus] = useState<any>(null)
@@ -392,13 +397,49 @@ function App() {
   const fetchCustomerProfile = async (customerId: number) => {
     setLoadingProfile(true)
     try {
-      const data = await fetch(`${API_BASE}/customers/${customerId}/history`).then(r => r.json())
-      setCustomerProfile(data)
+      const [profileData, loyaltyData] = await Promise.all([
+        fetch(`${API_BASE}/customers/${customerId}/history`).then(r => r.json()),
+        fetch(`${API_BASE}/loyalty/balance/${customerId}`).then(r => r.json()).catch(() => null)
+      ])
+      setCustomerProfile(profileData)
+      setLoyaltyBalance(loyaltyData)
       setShowCustomerProfile(true)
     } catch (e) {
       console.error("Failed to load profile:", e)
     }
     setLoadingProfile(false)
+  }
+
+  const fetchLoyaltyBalance = async (customerId: number) => {
+    try {
+      const data = await fetch(`${API_BASE}/loyalty/balance/${customerId}`).then(r => r.json())
+      setLoyaltyBalance(data)
+      return data
+    } catch (e) {
+      console.error("Failed to load loyalty balance:", e)
+      return null
+    }
+  }
+
+  const redeemLoyaltyPoints = async (customerId: number, points: number) => {
+    setRedeemingPoints(true)
+    try {
+      const res = await fetch(`${API_BASE}/loyalty/redeem`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customer_id: customerId, points })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        await fetchLoyaltyBalance(customerId)
+        setPointsToRedeem("")
+        return data.discount_value
+      }
+    } catch (e) {
+      console.error("Failed to redeem points:", e)
+    }
+    setRedeemingPoints(false)
+    return 0
   }
 
   const loadDrawerStatus = async () => {
@@ -1395,6 +1436,29 @@ function App() {
               <div className="text-sm text-gray-500">Avg Tip</div>
             </div>
           </div>
+
+          {/* Loyalty Points */}
+          {loyaltyBalance && (
+            <div className="p-6 border-b bg-gradient-to-r from-yellow-50 to-amber-50">
+              <h3 className="font-bold text-gray-700 mb-3">⭐ Loyalty Points</h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-4xl font-bold text-amber-600">{loyaltyBalance.current_points}</div>
+                  <div className="text-sm text-gray-500">Current Points</div>
+                  <div className="text-xs text-gray-400">Worth ${loyaltyBalance.redemption_value.toFixed(2)} in rewards</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xl font-semibold text-gray-600">{loyaltyBalance.lifetime_points}</div>
+                  <div className="text-sm text-gray-500">Lifetime Points</div>
+                </div>
+              </div>
+              {loyaltyBalance.current_points >= 100 && (
+                <div className="mt-4 p-3 bg-amber-100 rounded-lg text-amber-800 text-sm">
+                  🎉 Eligible for ${Math.floor(loyaltyBalance.current_points / 100)} discount!
+                </div>
+              )}
+            </div>
+          )}
           
           {/* Favorite Services */}
           {stats.favorite_services.length > 0 && (
