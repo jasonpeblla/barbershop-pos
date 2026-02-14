@@ -163,11 +163,35 @@ class Appointment(Base):
     duration_minutes = Column(Integer, default=30)
     status = Column(String, default="scheduled")  # scheduled, confirmed, in_progress, completed, cancelled, no_show
     notes = Column(Text, nullable=True)
+    recurring_id = Column(Integer, ForeignKey("recurring_appointments.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     customer = relationship("Customer")
     barber = relationship("Barber")
     service_type = relationship("ServiceType")
+    recurring = relationship("RecurringAppointment", back_populates="appointments")
+
+
+class RecurringAppointment(Base):
+    """Recurring appointment templates"""
+    __tablename__ = "recurring_appointments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    barber_id = Column(Integer, ForeignKey("barbers.id"), nullable=True)
+    service_type_id = Column(Integer, ForeignKey("service_types.id"), nullable=False)
+    frequency = Column(String(20), nullable=False)  # weekly, biweekly, monthly
+    day_of_week = Column(Integer, nullable=True)  # 0=Monday, 6=Sunday (for weekly/biweekly)
+    time_of_day = Column(String(10), nullable=False)  # "10:00"
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=True)  # null = indefinite
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    customer = relationship("Customer")
+    barber = relationship("Barber")
+    service_type = relationship("ServiceType")
+    appointments = relationship("Appointment", back_populates="recurring")
 
 
 class Feedback(Base):
