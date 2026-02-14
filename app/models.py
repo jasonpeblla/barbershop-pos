@@ -312,3 +312,29 @@ class DiscountUsage(Base):
 
     discount = relationship("Discount")
     customer = relationship("Customer")
+
+
+class BarberSchedule(Base):
+    """Weekly schedule for barbers"""
+    __tablename__ = "barber_schedules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    barber_id = Column(Integer, ForeignKey("barbers.id"), nullable=False)
+    day_of_week = Column(Integer, nullable=False)  # 0=Monday, 6=Sunday
+    start_time = Column(String(10), nullable=False)  # "09:00"
+    end_time = Column(String(10), nullable=False)    # "17:00"
+    is_available = Column(Boolean, default=True)
+
+    barber = relationship("Barber")
+
+
+class BarberDayOff(Base):
+    """Days off for barbers"""
+    __tablename__ = "barber_days_off"
+
+    id = Column(Integer, primary_key=True, index=True)
+    barber_id = Column(Integer, ForeignKey("barbers.id"), nullable=False)
+    date = Column(DateTime, nullable=False)
+    reason = Column(String(255), nullable=True)
+
+    barber = relationship("Barber")

@@ -20,6 +20,7 @@ from app.routers import (
     gift_cards,
     packages,
     discounts,
+    schedules,
 )
 
 # Seed data for barbershop services
@@ -125,6 +126,7 @@ app.include_router(loyalty.router)
 app.include_router(gift_cards.router)
 app.include_router(packages.router)
 app.include_router(discounts.router)
+app.include_router(schedules.router)
 
 
 @app.get("/health")
