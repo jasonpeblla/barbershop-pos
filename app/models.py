@@ -135,6 +135,29 @@ class CustomerServiceNote(Base):
     service_type = relationship("ServiceType")
 
 
+class BusinessHours(Base):
+    """Shop operating hours"""
+    __tablename__ = "business_hours"
+
+    id = Column(Integer, primary_key=True, index=True)
+    day_of_week = Column(Integer, nullable=False)  # 0=Monday, 6=Sunday
+    open_time = Column(String(10), nullable=True)  # "09:00" or null if closed
+    close_time = Column(String(10), nullable=True)
+    is_closed = Column(Boolean, default=False)
+
+
+class Holiday(Base):
+    """Shop holidays/closures"""
+    __tablename__ = "holidays"
+
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(DateTime, nullable=False)
+    name = Column(String(100), nullable=False)
+    is_closed = Column(Boolean, default=True)
+    modified_hours = Column(String(50), nullable=True)  # "10:00-14:00" for special hours
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Payment(Base):
     __tablename__ = "payments"
 
