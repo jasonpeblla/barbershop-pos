@@ -39,6 +39,9 @@ class Customer(Base):
     visit_count = Column(Integer, default=0)  # Number of visits
     tags = Column(String(500), nullable=True)  # Comma-separated tags: "prefers-quiet,cash-only,senior"
     communication_preference = Column(String(20), default="any")  # sms, email, any, none
+    current_streak = Column(Integer, default=0)  # Consecutive visit streak
+    longest_streak = Column(Integer, default=0)  # Best streak ever
+    last_visit_date = Column(DateTime, nullable=True)  # For streak calculation
     created_at = Column(DateTime, default=datetime.utcnow)
     
     orders = relationship("Order", back_populates="customer")

@@ -591,3 +591,174 @@ def set_communication_preference(customer_id: int, preference: str, db: Session 
     db.commit()
     
     return {"message": "Preference updated", "communication_preference": preference}
+
+
+# ===== VISIT STREAK SYSTEM =====
+
+STREAK_REWARDS = {
+    3: {"type": "discount", "value": 5, "description": "5% off your next visit"},
+    5: {"type": "discount", "value": 10, "description": "10% off your next visit"},
+    10: {"type": "free_service", "value": "eyebrow_trim", "description": "Free eyebrow trim"},
+    15: {"type": "discount", "value": 15, "description": "15% off your next visit"},
+    20: {"type": "free_service", "value": "beard_trim", "description": "Free beard trim"},
+    25: {"type": "discount", "value": 20, "description": "20% off your next visit"},
+}
+
+
+@router.post("/{customer_id}/record-visit")
+def record_customer_visit(customer_id: int, db: Session = Depends(get_db)):
+    """Record a customer visit and update streak"""
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    today = datetime.now().date()
+    streak_maintained = False
+    streak_broken = False
+    new_reward = None
+    
+    if customer.last_visit_date:
+        last_visit = customer.last_visit_date.date() if isinstance(customer.last_visit_date, datetime) else customer.last_visit_date
+        days_since = (today - last_visit).days
+        
+        if days_since == 0:
+            # Same day visit - don't update streak
+            return {
+                "message": "Visit already recorded today",
+                "current_streak": customer.current_streak,
+                "longest_streak": customer.longest_streak
+            }
+        elif days_since <= 35:  # Within ~monthly window
+            # Streak continues
+            customer.current_streak = (customer.current_streak or 0) + 1
+            streak_maintained = True
+        else:
+            # Streak broken
+            customer.current_streak = 1
+            streak_broken = True
+    else:
+        # First visit
+        customer.current_streak = 1
+    
+    # Update last visit
+    customer.last_visit_date = datetime.now()
+    
+    # Update longest streak
+    if customer.current_streak > (customer.longest_streak or 0):
+        customer.longest_streak = customer.current_streak
+    
+    # Update visit count
+    customer.visit_count = (customer.visit_count or 0) + 1
+    
+    # Check for streak reward
+    if customer.current_streak in STREAK_REWARDS:
+        new_reward = STREAK_REWARDS[customer.current_streak]
+    
+    db.commit()
+    
+    return {
+        "message": "Visit recorded",
+        "current_streak": customer.current_streak,
+        "longest_streak": customer.longest_streak,
+        "streak_maintained": streak_maintained,
+        "streak_broken": streak_broken,
+        "new_reward": new_reward,
+        "next_reward_at": get_next_reward_milestone(customer.current_streak)
+    }
+
+
+def get_next_reward_milestone(current_streak: int) -> dict:
+    """Get the next streak milestone"""
+    for milestone in sorted(STREAK_REWARDS.keys()):
+        if milestone > current_streak:
+            return {
+                "streak_needed": milestone,
+                "visits_until": milestone - current_streak,
+                "reward": STREAK_REWARDS[milestone]["description"]
+            }
+    return None
+
+
+@router.get("/{customer_id}/streak")
+def get_customer_streak(customer_id: int, db: Session = Depends(get_db)):
+    """Get customer's current streak status"""
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    today = datetime.now().date()
+    streak_at_risk = False
+    days_until_expires = None
+    
+    if customer.last_visit_date:
+        last_visit = customer.last_visit_date.date() if isinstance(customer.last_visit_date, datetime) else customer.last_visit_date
+        days_since = (today - last_visit).days
+        days_until_expires = 35 - days_since
+        streak_at_risk = days_until_expires <= 7
+    
+    return {
+        "customer_id": customer_id,
+        "customer_name": customer.name,
+        "current_streak": customer.current_streak or 0,
+        "longest_streak": customer.longest_streak or 0,
+        "last_visit": customer.last_visit_date.isoformat() if customer.last_visit_date else None,
+        "streak_at_risk": streak_at_risk,
+        "days_until_streak_expires": max(0, days_until_expires) if days_until_expires else None,
+        "next_reward": get_next_reward_milestone(customer.current_streak or 0),
+        "available_rewards": [
+            {"milestone": m, **r}
+            for m, r in STREAK_REWARDS.items()
+            if m <= (customer.current_streak or 0)
+        ]
+    }
+
+
+@router.get("/streaks/leaderboard")
+def get_streak_leaderboard(limit: int = 10, db: Session = Depends(get_db)):
+    """Get customers with highest streaks"""
+    customers = db.query(Customer).filter(
+        Customer.current_streak > 0
+    ).order_by(Customer.current_streak.desc()).limit(limit).all()
+    
+    return [
+        {
+            "rank": i + 1,
+            "customer_id": c.id,
+            "customer_name": c.name,
+            "current_streak": c.current_streak,
+            "longest_streak": c.longest_streak,
+            "badge": "🔥" if c.current_streak >= 10 else ("⚡" if c.current_streak >= 5 else "")
+        }
+        for i, c in enumerate(customers)
+    ]
+
+
+@router.get("/streaks/at-risk")
+def get_at_risk_streaks(db: Session = Depends(get_db)):
+    """Get customers whose streaks are about to expire"""
+    today = datetime.now()
+    cutoff_warning = today - timedelta(days=28)  # 7 days warning
+    cutoff_danger = today - timedelta(days=32)  # 3 days warning
+    
+    customers = db.query(Customer).filter(
+        Customer.current_streak >= 3,  # Only care about meaningful streaks
+        Customer.last_visit_date <= cutoff_warning
+    ).order_by(Customer.last_visit_date).all()
+    
+    at_risk = []
+    for c in customers:
+        if c.last_visit_date:
+            days_since = (today.date() - c.last_visit_date.date()).days
+            days_left = 35 - days_since
+            
+            at_risk.append({
+                "customer_id": c.id,
+                "customer_name": c.name,
+                "phone": c.phone,
+                "current_streak": c.current_streak,
+                "days_since_visit": days_since,
+                "days_until_expires": max(0, days_left),
+                "urgency": "critical" if days_left <= 3 else "warning"
+            })
+    
+    return at_risk
