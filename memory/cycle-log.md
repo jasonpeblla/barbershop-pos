@@ -1,139 +1,305 @@
 # Cycle Log - Barbershop POS
 
-## Autonomous Improvement Session - Feb 13, 2026
+## Autonomous Improvement Session #2 - Feb 13, 2026
 
 ### Summary
-- **Cycles Completed:** 10
-- **Features Implemented:** 11 (some features spanned backend + frontend)
-- **Total Commits:** 11
+- **Cycles Completed:** 20
+- **Features Implemented:** 20
+- **Total Commits:** 20
 - **All Pushed to GitHub:** ✅
 
 ---
 
-## Cycle 1: Loyalty Points System (Backend)
-- **Feature:** FR-007 - Loyalty Points System
-- **Commit:** 5380b06
-- **Description:** Added LoyaltyTransaction model, loyalty router with earn/redeem/bonus endpoints
-- **Config:** 1 point per $1 spent, 100 points = $1 redemption
+## Features Implemented This Session
 
-## Cycle 2: Loyalty Points + Quick Check-in
-- **Features:** FR-007 (frontend), FR-011
-- **Commits:** 94f7524, a405af2
-- **Description:** 
-  - Added loyalty points display in customer profile
-  - Phone number search for quick queue check-in
+### Cycle 1: FR-019 - Barber Schedule Management
+- **Commit:** f749b7c
+- **Description:** Working hours per day, days off, availability checking
 
-## Cycle 3: Barber Performance Reports
-- **Feature:** FR-012 - Barber Performance Reports & Leaderboard
-- **Commit:** e298a9f
-- **Description:** Added /reports/barber/{id} and /reports/leaderboard endpoints
+### Cycle 2: FR-021 - Customer Birthday Rewards
+- **Commit:** ddf3268
+- **Description:** Birthday field, annual discount, upcoming birthdays list
 
-## Cycle 4: Leaderboard UI
-- **Feature:** FR-012 (frontend)
-- **Commit:** 0405106
-- **Description:** Added leaderboard UI with Today/Week/Month filters and medal badges
+### Cycle 3: FR-020 - Inventory Management
+- **Commit:** 7fdb38e
+- **Description:** Stock tracking, restock, transactions, low-stock alerts, barcode lookup
 
-## Cycle 5: Appointment Status Management
-- **Feature:** FR-013 - Appointment Status Management
-- **Commit:** b1b8011
-- **Description:** Added confirm, check-in, start, complete, no-show endpoints
+### Cycle 4: FR-022 - Recurring Appointments
+- **Commit:** 6c37833
+- **Description:** Weekly, biweekly, monthly auto-generation of appointments
 
-## Cycle 6: Appointment Status UI
-- **Feature:** FR-013 (frontend)
-- **Commit:** dd08672
-- **Description:** Added status buttons and upcoming appointments alert
+### Cycle 5: FR-023 - Enhanced Wait Time Estimates
+- **Commit:** ae03da2
+- **Description:** Historical data, hourly distribution, smart recommendations
 
-## Cycle 7: Gift Card System
-- **Feature:** FR-014 - Gift Card System
-- **Commit:** 9cfc955
-- **Description:** Full gift card system with purchase, lookup, redeem, reload
+### Cycle 6: FR-024 - Barber Break Management
+- **Commit:** ccf3c7c
+- **Description:** Lunch, short, personal breaks with scheduling and overtime tracking
 
-## Cycle 8: Service Packages/Bundles
-- **Feature:** FR-015 - Service Packages
-- **Commit:** bf85d2e
-- **Description:** Package creation, customer purchase, redemption tracking
+### Cycle 7: FR-025 - VIP Customer Tiers
+- **Commit:** ded9ead
+- **Description:** Bronze, silver, gold, platinum tiers with progressive discounts
 
-## Cycle 9: Queue Notifications
-- **Feature:** FR-016 - Queue Notifications & Self-Check
-- **Commit:** 9c43312
-- **Description:** SMS-ready notifications, phone lookup, position checking
+### Cycle 8: FR-026 - Membership System
+- **Commit:** 46fc9d9
+- **Description:** Monthly plans, haircut tracking, pause/resume, MRR analytics
 
-## Cycle 10: Discount/Promo Codes
-- **Feature:** FR-017 - Discount/Promo Code System
-- **Commit:** de12d98
-- **Description:** Full promo code system with percent/fixed discounts, validation
+### Cycle 9: FR-027 - Referral Program
+- **Commit:** 97c5630
+- **Description:** Referral codes, rewards, leaderboard, tracking
+
+### Cycle 10: FR-028 - Daily Revenue Targets
+- **Commit:** f888321
+- **Description:** Daily/weekly goals, progress tracking, achievement history
+
+### Cycle 11: FR-029 - Customer Tags & Preferences
+- **Commit:** c1b985a
+- **Description:** Personality, demographics, hair type, communication preferences
+
+### Cycle 12: FR-030 - Service Peak/Off-Peak Pricing
+- **Commit:** 45fc664
+- **Description:** Dynamic pricing by time of day, weekend premiums
+
+### Cycle 13: FR-031 - Customer Visit Streak Rewards
+- **Commit:** 28fe9ac
+- **Description:** Streak tracking, milestones, at-risk alerts
+
+### Cycle 14: FR-032 - Service Add-ons & Upsells
+- **Commit:** 0764656
+- **Description:** Smart suggestions, combo deals, popular add-ons
+
+### Cycle 15: FR-033 - Tip Presets & Split Payments
+- **Commit:** 7e91e0a
+- **Description:** Quick tips, split bills, cash with change calculation
+
+### Cycle 16: FR-034 - Customer Service Notes & History
+- **Commit:** 3693eda
+- **Description:** Preferences, warnings, allergies, style notes
+
+### Cycle 17: FR-035 - Business Hours & Holidays
+- **Commit:** 7861208
+- **Description:** Operating hours, holiday closures, modified schedules
+
+### Cycle 18: FR-036 - Quick POS Actions
+- **Commit:** 79e2362
+- **Description:** Fast walk-in, one-tap checkout, customer lookup
+
+### Cycle 19: FR-037 - Staff Performance Metrics
+- **Commit:** 8e74a2a
+- **Description:** Detailed analytics, comparison, efficiency tracking
+
+### Cycle 20: FR-038 - Dashboard Summary & Insights
+- **Commit:** ec3a6ed
+- **Description:** KPIs, live status, actionable business insights
+
+---
+
+## New API Endpoints Added
+
+### Schedules
+- GET /schedules/barber/{barber_id}
+- POST /schedules/
+- POST /schedules/bulk/{barber_id}
+- POST /schedules/day-off
+- GET /schedules/days-off/{barber_id}
+- GET /schedules/available-today
+
+### Customer Birthday
+- PATCH /customers/{id}/birthday
+- GET /customers/birthdays/today
+- GET /customers/birthdays/upcoming
+- POST /customers/{id}/birthday-discount
+- GET /customers/{id}/birthday-status
+
+### Inventory
+- GET /products/ (enhanced with stock info)
+- GET /products/low-stock
+- GET /products/inventory-value
+- POST /products/{id}/restock
+- POST /products/{id}/adjust
+- GET /products/{id}/history
+- GET /products/scan/{barcode}
+
+### Recurring Appointments
+- GET /recurring/
+- GET /recurring/customer/{customer_id}
+- POST /recurring/
+- POST /recurring/{id}/generate
+- PATCH /recurring/{id}
+- DELETE /recurring/{id}
+
+### Enhanced Queue
+- GET /queue/wait-times
+- GET /queue/barber/{barber_id}/queue
+
+### Barber Breaks
+- POST /barbers/{id}/break/start
+- POST /barbers/{id}/break/end
+- GET /barbers/{id}/break/status
+- GET /barbers/breaks/active
+- GET /barbers/{id}/breaks/today
+
+### VIP Tiers
+- GET /customers/{id}/vip-status
+- POST /customers/{id}/update-tier
+- GET /customers/vip/all
+- GET /customers/vip/tiers
+
+### Memberships
+- GET /memberships/plans
+- POST /memberships/plans
+- POST /memberships/subscribe
+- GET /memberships/customer/{customer_id}
+- POST /memberships/customer/{id}/use-haircut
+- POST /memberships/customer/{id}/pause
+- POST /memberships/customer/{id}/resume
+- GET /memberships/active
+- GET /memberships/revenue
+
+### Referrals
+- GET /referrals/customer/{id}/code
+- GET /referrals/validate/{code}
+- POST /referrals/complete
+- GET /referrals/customer/{id}/stats
+- GET /referrals/leaderboard
+- GET /referrals/config
+
+### Revenue Targets
+- POST /reports/targets
+- GET /reports/targets/today
+- GET /reports/targets/week
+- GET /reports/targets/history
+- POST /reports/targets/set-default
+
+### Customer Tags
+- GET /customers/tags/available
+- POST /customers/{id}/tags/add
+- POST /customers/{id}/tags/remove
+- GET /customers/{id}/tags
+- GET /customers/by-tag/{tag}
+- PATCH /customers/{id}/communication-preference
+
+### Service Pricing
+- GET /services/pricing/current
+- POST /services/{id}/set-peak-pricing
+- POST /services/pricing/bulk-update
+
+### Customer Streaks
+- POST /customers/{id}/record-visit
+- GET /customers/{id}/streak
+- GET /customers/streaks/leaderboard
+- GET /customers/streaks/at-risk
+
+### Upsells
+- GET /services/{id}/upsells
+- POST /services/{id}/set-upsells
+- GET /services/addons/popular
+- GET /services/combos/suggest
+
+### Payments
+- GET /payments/tips/presets/{order_id}
+- GET /payments/tips/calculate
+- POST /payments/split/{order_id}
+- GET /payments/split/suggest/{order_id}
+- GET /payments/methods
+- POST /payments/quick-cash/{order_id}
+
+### Service Notes
+- POST /customers/{id}/service-notes
+- GET /customers/{id}/service-notes
+- GET /customers/{id}/service-notes/important
+- DELETE /customers/{id}/service-notes/{note_id}
+- GET /customers/{id}/service-history
+
+### Business Hours
+- GET /business/hours
+- POST /business/hours/{day}
+- POST /business/hours/bulk
+- GET /business/status
+- GET /business/holidays
+- POST /business/holidays
+- DELETE /business/holidays/{id}
+- POST /business/holidays/add-common
+
+### Quick Actions
+- POST /quick/walkin
+- POST /quick/start-service/{queue_id}
+- POST /quick/checkout
+- GET /quick/customer/{phone}
+- GET /quick/today
+- GET /quick/services/popular
+
+### Performance
+- GET /reports/performance/{barber_id}/detailed
+- GET /reports/performance/comparison
+- GET /reports/performance/efficiency
+
+### Dashboard
+- GET /dashboard/
+- GET /dashboard/insights
+- GET /dashboard/kpis
+- GET /dashboard/live
+
+---
+
+## Models Added
+- BarberSchedule
+- BarberDayOff
+- BarberBreak
+- Product (enhanced)
+- InventoryTransaction
+- RecurringAppointment
+- MembershipPlan
+- CustomerMembership
+- Referral
+- RevenueTarget
+- CustomerServiceNote
+- BusinessHours
+- Holiday
+
+## Customer Model Enhancements
+- birthday
+- birthday_discount_used_year
+- vip_tier
+- total_spent
+- visit_count
+- tags
+- communication_preference
+- current_streak
+- longest_streak
+- last_visit_date
+
+## Service Model Enhancements
+- peak_price
+- off_peak_price
+- suggested_addons
+- upsell_message
 
 ---
 
 ## Git Verification
 ```
-All commits pushed: ✅
-Latest commit: de12d98 - FR-017: Discount/Promo Code System
+All 20 commits pushed: ✅
+Latest commit: ec3a6ed - FR-038: Dashboard Summary & Insights
 ```
-
-## New API Endpoints Added
-
-### Loyalty
-- GET /loyalty/balance/{customer_id}
-- GET /loyalty/history/{customer_id}
-- POST /loyalty/earn
-- POST /loyalty/redeem
-- POST /loyalty/bonus
-- GET /loyalty/config
-
-### Reports
-- GET /reports/barber/{barber_id}
-- GET /reports/leaderboard
-
-### Appointments
-- POST /appointments/{id}/confirm
-- POST /appointments/{id}/check-in
-- POST /appointments/{id}/start
-- POST /appointments/{id}/complete
-- POST /appointments/{id}/no-show
-- GET /appointments/upcoming
-
-### Gift Cards
-- POST /gift-cards/
-- GET /gift-cards/lookup/{code}
-- POST /gift-cards/redeem
-- POST /gift-cards/reload/{code}
-- GET /gift-cards/{id}/history
-- GET /gift-cards/
-
-### Packages
-- GET /packages/
-- POST /packages/
-- POST /packages/{id}/purchase
-- GET /packages/customer/{customer_id}
-- POST /packages/redeem/{customer_package_id}
-
-### Queue
-- GET /queue/{entry_id}/status
-- POST /queue/{entry_id}/notify-ready
-- POST /queue/{entry_id}/notify-soon
-- GET /queue/lookup/{phone}
-
-### Discounts
-- GET /discounts/
-- POST /discounts/
-- POST /discounts/apply
-- POST /discounts/use
-- PATCH /discounts/{id}/deactivate
 
 ---
 
-## Models Added
-- LoyaltyTransaction
-- GiftCard
-- GiftCardTransaction
-- ServicePackage
-- PackageService
-- CustomerPackage
-- Discount
-- DiscountUsage
+## Previous Session (Feb 13, 2026 - Session 1)
 
-## Next Session Focus
-- SMS integration (Twilio) for queue notifications
-- Multi-service appointments
-- Customer self-service kiosk mode
+### Features Implemented
+- FR-007: Loyalty Points System
+- FR-011: Quick Check-in by Phone
+- FR-012: Barber Performance Reports & Leaderboard
+- FR-013: Appointment Status Management
+- FR-014: Gift Card System
+- FR-015: Service Packages/Bundles
+- FR-016: Queue Notifications & Self-Check
+- FR-017: Discount/Promo Code System
+
+---
+
+## Total Features Across All Sessions
+- **Session 1:** 11 features
+- **Session 2:** 20 features
+- **Total:** 31 features implemented
