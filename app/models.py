@@ -274,3 +274,41 @@ class CustomerPackage(Base):
 
     customer = relationship("Customer")
     package = relationship("ServicePackage")
+
+
+class Discount(Base):
+    """Discount/Promo codes"""
+    __tablename__ = "discounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(50), unique=True, index=True, nullable=False)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    discount_type = Column(String(20), nullable=False)  # "percent" or "fixed"
+    discount_value = Column(Float, nullable=False)
+    min_purchase = Column(Float, default=0.0)
+    max_discount = Column(Float, nullable=True)  # cap for percentage discounts
+    max_uses = Column(Integer, nullable=True)  # total uses allowed
+    max_uses_per_customer = Column(Integer, default=1)
+    times_used = Column(Integer, default=0)
+    valid_from = Column(DateTime, nullable=True)
+    valid_until = Column(DateTime, nullable=True)
+    first_visit_only = Column(Boolean, default=False)
+    service_ids = Column(String, nullable=True)  # comma-separated service IDs
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class DiscountUsage(Base):
+    """Track discount code usage"""
+    __tablename__ = "discount_usages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    discount_id = Column(Integer, ForeignKey("discounts.id"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
+    amount_saved = Column(Float, nullable=False)
+    used_at = Column(DateTime, default=datetime.utcnow)
+
+    discount = relationship("Discount")
+    customer = relationship("Customer")
