@@ -1,71 +1,105 @@
-# Feature Requests
+# Feature Requests - Barbershop POS
 
-## FR-001: Appointment Booking UI
-- **Priority:** P1
-- **Effort:** M
-- **Status:** Pending
-- **Problem:** No way to book appointments from frontend
-- **Solution:** Add appointment booking modal with date/time picker
+## Completed
 
-## FR-002: Customer Profile View
-- **Priority:** P1  
-- **Effort:** M
-- **Status:** Pending
-- **Problem:** Can't see customer history in UI
-- **Solution:** Add customer profile modal with visit history
-
-## FR-003: Barber Clock In/Out UI
-- **Priority:** P1
-- **Effort:** S
-- **Status:** Pending
-- **Problem:** No way for barbers to clock in/out from UI
-- **Solution:** Add clock in/out buttons in navigation
-
-## FR-004: Real-time Queue Updates
-- **Priority:** P2
-- **Effort:** S
-- **Status:** Pending
-- **Problem:** Queue updates via polling - not real-time
-- **Solution:** Add WebSocket for instant queue updates
-
-## FR-005: Service Notes in Cart
-- **Priority:** P2
-- **Effort:** S
-- **Status:** Pending
-- **Problem:** Can't add special instructions per service
-- **Solution:** Add notes input for each cart item
-
-## FR-006: Cash Drawer Integration
-- **Priority:** P2
-- **Effort:** M
-- **Status:** Pending
-- **Problem:** No cash drawer tracking
-- **Solution:** Add cash drawer open/close, track cash in/out
-
-## FR-007: Loyalty Points System
+### FR-007: Loyalty Points System
 - **Priority:** P2
 - **Effort:** L
-- **Status:** Pending
-- **Problem:** No loyalty/rewards program
-- **Solution:** Points system with redemption
+- **Status:** ✅ Done
+- **Commits:** 5380b06, 94f7524
 
-## FR-008: SMS Notifications
+### FR-011: Quick Check-in by Phone
+- **Priority:** P1
+- **Effort:** S
+- **Status:** ✅ Done
+- **Commit:** a405af2
+
+### FR-012: Barber Performance Reports & Leaderboard
 - **Priority:** P2
 - **Effort:** M
-- **Status:** Pending
-- **Problem:** No way to notify customers when it's their turn
-- **Solution:** SMS integration for queue notifications
+- **Status:** ✅ Done
+- **Commits:** e298a9f, 0405106
 
-## FR-009: Product Sales
-- **Priority:** P3
+### FR-013: Appointment Status Management
+- **Priority:** P1
 - **Effort:** M
-- **Status:** Pending
-- **Problem:** Can't sell hair products
-- **Solution:** Add product inventory and POS integration
+- **Status:** ✅ Done
+- **Commits:** b1b8011, dd08672
 
-## FR-010: Multi-Service Appointments
+### FR-014: Gift Card System
+- **Priority:** P2
+- **Effort:** L
+- **Status:** ✅ Done
+- **Commit:** 9cfc955
+
+### FR-015: Service Packages/Bundles
+- **Priority:** P2
+- **Effort:** L
+- **Status:** ✅ Done
+- **Commit:** bf85d2e
+
+### FR-016: Queue Notifications & Self-Check
+- **Priority:** P2
+- **Effort:** M
+- **Status:** ✅ Done
+- **Commit:** 9c43312
+
+### FR-017: Discount/Promo Code System
+- **Priority:** P2
+- **Effort:** M
+- **Status:** ✅ Done
+- **Commit:** de12d98
+
+---
+
+## Previously Completed (Pre-Existing)
+
+### FR-001: Appointment Booking UI ✅
+### FR-002: Customer Profile View ✅
+### FR-003: Barber Clock In/Out UI ✅
+### FR-004: Real-time Queue Updates ✅
+### FR-005: Service Notes in Cart ✅
+### FR-006: Cash Drawer Integration ✅
+### FR-009: Product Sales ✅
+
+---
+
+## Backlog
+
+### FR-008: SMS Notifications
+- **Priority:** P2
+- **Effort:** M
+- **Status:** Pending (SMS-ready endpoints created in FR-016)
+- **Problem:** No way to notify customers when it's their turn
+- **Solution:** SMS integration for queue notifications (Twilio integration needed)
+
+### FR-010: Multi-Service Appointments
 - **Priority:** P3
 - **Effort:** M
 - **Status:** Pending
 - **Problem:** Appointments limited to single service
 - **Solution:** Allow multiple services per appointment
+
+### FR-018: Customer Self-Service Kiosk Mode
+- **Priority:** P3
+- **Effort:** L
+- **Status:** Proposed
+- **Solution:** Touch-screen mode for customer check-in
+
+### FR-019: Barber Schedule Management
+- **Priority:** P2
+- **Effort:** M
+- **Status:** Proposed
+- **Solution:** Set working hours, days off per barber
+
+### FR-020: Inventory Management
+- **Priority:** P3
+- **Effort:** L
+- **Status:** Proposed
+- **Solution:** Track product stock levels, low stock alerts
+
+### FR-021: Customer Birthday Rewards
+- **Priority:** P3
+- **Effort:** S
+- **Status:** Proposed
+- **Solution:** Auto-discount on customer birthdays
