@@ -32,6 +32,8 @@ class Customer(Base):
     notes = Column(Text, nullable=True)
     loyalty_points = Column(Integer, default=0)  # Current points balance
     lifetime_points = Column(Integer, default=0)  # Total points ever earned
+    birthday = Column(DateTime, nullable=True)  # Customer birthday for rewards
+    birthday_discount_used_year = Column(Integer, nullable=True)  # Year discount was used
     created_at = Column(DateTime, default=datetime.utcnow)
     
     orders = relationship("Order", back_populates="customer")
