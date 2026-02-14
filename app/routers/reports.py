@@ -214,3 +214,145 @@ def top_customers(limit: int = 10, db: Session = Depends(get_db)):
     sorted_customers = sorted(customer_stats, key=lambda x: x["total_spent"], reverse=True)
     
     return sorted_customers[:limit]
+
+
+@router.get("/barber/{barber_id}")
+def barber_performance(barber_id: int, days: int = 7, db: Session = Depends(get_db)):
+    """Get detailed performance stats for a specific barber"""
+    barber = db.query(Barber).filter(Barber.id == barber_id).first()
+    if not barber:
+        return {"error": "Barber not found"}
+    
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days)
+    
+    orders = db.query(Order).filter(
+        Order.barber_id == barber_id,
+        Order.status == "completed",
+        func.date(Order.completed_at) >= start_date,
+        func.date(Order.completed_at) <= end_date
+    ).all()
+    
+    # Daily breakdown
+    daily_stats = {}
+    for o in orders:
+        day = o.completed_at.date().isoformat() if o.completed_at else o.created_at.date().isoformat()
+        if day not in daily_stats:
+            daily_stats[day] = {"customers": 0, "revenue": 0, "tips": 0, "services": []}
+        daily_stats[day]["customers"] += 1
+        daily_stats[day]["revenue"] += o.subtotal
+        daily_stats[day]["tips"] += o.tip
+    
+    # Hourly breakdown for today
+    today_orders = [o for o in orders if o.completed_at and o.completed_at.date() == date.today()]
+    hourly_stats = {}
+    for o in today_orders:
+        hour = o.completed_at.hour
+        hour_label = f"{hour:02d}:00"
+        if hour_label not in hourly_stats:
+            hourly_stats[hour_label] = {"customers": 0, "revenue": 0}
+        hourly_stats[hour_label]["customers"] += 1
+        hourly_stats[hour_label]["revenue"] += o.subtotal
+    
+    # Service breakdown
+    service_counts = {}
+    for o in orders:
+        for os in o.services:
+            service = db.query(ServiceType).filter(ServiceType.id == os.service_type_id).first()
+            if service:
+                if service.name not in service_counts:
+                    service_counts[service.name] = 0
+                service_counts[service.name] += os.quantity
+    
+    total_revenue = sum(o.subtotal for o in orders)
+    total_tips = sum(o.tip for o in orders)
+    commission = total_revenue * barber.commission_rate
+    
+    return {
+        "barber": {
+            "id": barber.id,
+            "name": barber.name,
+            "commission_rate": barber.commission_rate,
+            "specialties": barber.specialties
+        },
+        "period": {
+            "start": start_date.isoformat(),
+            "end": end_date.isoformat(),
+            "days": days
+        },
+        "summary": {
+            "total_customers": len(orders),
+            "total_revenue": round(total_revenue, 2),
+            "total_tips": round(total_tips, 2),
+            "commission_earned": round(commission, 2),
+            "total_earnings": round(commission + total_tips, 2),
+            "avg_per_customer": round(total_revenue / len(orders), 2) if orders else 0,
+            "avg_tip": round(total_tips / len(orders), 2) if orders else 0
+        },
+        "daily_breakdown": dict(sorted(daily_stats.items())),
+        "hourly_today": dict(sorted(hourly_stats.items())),
+        "top_services": dict(sorted(service_counts.items(), key=lambda x: x[1], reverse=True)[:5])
+    }
+
+
+@router.get("/leaderboard")
+def barber_leaderboard(period: str = "today", db: Session = Depends(get_db)):
+    """Get barber leaderboard for gamification"""
+    if period == "today":
+        start_date = date.today()
+        end_date = date.today()
+    elif period == "week":
+        end_date = date.today()
+        start_date = end_date - timedelta(days=7)
+    elif period == "month":
+        end_date = date.today()
+        start_date = end_date.replace(day=1)
+    else:
+        start_date = date.today()
+        end_date = date.today()
+    
+    barbers = db.query(Barber).filter(Barber.is_active == True).all()
+    
+    leaderboard = []
+    for barber in barbers:
+        orders = db.query(Order).filter(
+            Order.barber_id == barber.id,
+            Order.status == "completed",
+            func.date(Order.completed_at) >= start_date,
+            func.date(Order.completed_at) <= end_date
+        ).all()
+        
+        revenue = sum(o.subtotal for o in orders)
+        tips = sum(o.tip for o in orders)
+        customers = len(orders)
+        
+        leaderboard.append({
+            "barber_id": barber.id,
+            "barber_name": barber.name,
+            "customers": customers,
+            "revenue": round(revenue, 2),
+            "tips": round(tips, 2),
+            "avg_tip_percent": round((tips / revenue * 100) if revenue > 0 else 0, 1)
+        })
+    
+    # Sort by revenue
+    leaderboard.sort(key=lambda x: x["revenue"], reverse=True)
+    
+    # Add ranking
+    for i, entry in enumerate(leaderboard):
+        entry["rank"] = i + 1
+        if i == 0:
+            entry["badge"] = "🥇"
+        elif i == 1:
+            entry["badge"] = "🥈"
+        elif i == 2:
+            entry["badge"] = "🥉"
+        else:
+            entry["badge"] = ""
+    
+    return {
+        "period": period,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "leaderboard": leaderboard
+    }
