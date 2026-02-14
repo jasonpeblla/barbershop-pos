@@ -418,6 +418,28 @@ class CustomerMembership(Base):
     plan = relationship("MembershipPlan")
 
 
+class Referral(Base):
+    """Customer referral tracking"""
+    __tablename__ = "referrals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    referrer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    referred_id = Column(Integer, ForeignKey("customers.id"), nullable=True)  # After they sign up
+    referred_name = Column(String(100), nullable=True)
+    referred_phone = Column(String(20), nullable=True)
+    referral_code = Column(String(20), unique=True, nullable=False)
+    status = Column(String(20), default="pending")  # pending, completed, rewarded
+    referrer_reward_type = Column(String(20), default="discount")  # discount, points, cash
+    referrer_reward_value = Column(Float, default=10.0)
+    referred_reward_type = Column(String(20), default="discount")
+    referred_reward_value = Column(Float, default=10.0)
+    rewarded_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    referrer = relationship("Customer", foreign_keys=[referrer_id])
+    referred = relationship("Customer", foreign_keys=[referred_id])
+
+
 class Product(Base):
     """Retail products for sale"""
     __tablename__ = "products"
