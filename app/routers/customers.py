@@ -308,3 +308,150 @@ def get_birthday_status(customer_id: int, db: Session = Depends(get_db)):
         "discount_percent": 20 if discount_available else 0,
         "already_used_this_year": customer.birthday_discount_used_year == today.year
     }
+
+
+# ===== VIP TIER SYSTEM =====
+
+VIP_TIERS = {
+    "bronze": {"min_spent": 0, "min_visits": 0, "discount": 0, "points_multiplier": 1.0},
+    "silver": {"min_spent": 200, "min_visits": 5, "discount": 5, "points_multiplier": 1.25},
+    "gold": {"min_spent": 500, "min_visits": 15, "discount": 10, "points_multiplier": 1.5},
+    "platinum": {"min_spent": 1000, "min_visits": 30, "discount": 15, "points_multiplier": 2.0}
+}
+
+
+def calculate_vip_tier(total_spent: float, visit_count: int) -> str:
+    """Calculate VIP tier based on spending and visits"""
+    tier = "bronze"
+    for tier_name, requirements in VIP_TIERS.items():
+        if total_spent >= requirements["min_spent"] and visit_count >= requirements["min_visits"]:
+            tier = tier_name
+    return tier
+
+
+@router.get("/{customer_id}/vip-status")
+def get_vip_status(customer_id: int, db: Session = Depends(get_db)):
+    """Get customer's VIP tier status and benefits"""
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    current_tier = customer.vip_tier or "bronze"
+    tier_benefits = VIP_TIERS.get(current_tier, VIP_TIERS["bronze"])
+    
+    # Calculate progress to next tier
+    tier_order = ["bronze", "silver", "gold", "platinum"]
+    current_index = tier_order.index(current_tier)
+    
+    next_tier = None
+    next_tier_progress = None
+    
+    if current_index < len(tier_order) - 1:
+        next_tier = tier_order[current_index + 1]
+        next_requirements = VIP_TIERS[next_tier]
+        
+        spent_progress = min(100, (customer.total_spent / next_requirements["min_spent"]) * 100) if next_requirements["min_spent"] > 0 else 100
+        visits_progress = min(100, (customer.visit_count / next_requirements["min_visits"]) * 100) if next_requirements["min_visits"] > 0 else 100
+        
+        next_tier_progress = {
+            "tier": next_tier,
+            "spent_needed": next_requirements["min_spent"] - customer.total_spent,
+            "visits_needed": next_requirements["min_visits"] - customer.visit_count,
+            "spent_progress_percent": round(spent_progress, 1),
+            "visits_progress_percent": round(visits_progress, 1)
+        }
+    
+    return {
+        "customer_id": customer.id,
+        "customer_name": customer.name,
+        "current_tier": current_tier,
+        "total_spent": customer.total_spent or 0,
+        "visit_count": customer.visit_count or 0,
+        "benefits": {
+            "discount_percent": tier_benefits["discount"],
+            "points_multiplier": tier_benefits["points_multiplier"]
+        },
+        "next_tier_progress": next_tier_progress
+    }
+
+
+@router.post("/{customer_id}/update-tier")
+def update_customer_tier(customer_id: int, db: Session = Depends(get_db)):
+    """Recalculate and update customer's VIP tier based on current stats"""
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    # Calculate stats from orders if not tracked
+    if not customer.total_spent or not customer.visit_count:
+        orders = db.query(Order).filter(
+            Order.customer_id == customer_id,
+            Order.status == "completed"
+        ).all()
+        
+        customer.total_spent = sum(o.total for o in orders)
+        customer.visit_count = len(orders)
+    
+    old_tier = customer.vip_tier or "bronze"
+    new_tier = calculate_vip_tier(customer.total_spent, customer.visit_count)
+    customer.vip_tier = new_tier
+    
+    db.commit()
+    
+    tier_changed = old_tier != new_tier
+    
+    return {
+        "customer_id": customer.id,
+        "old_tier": old_tier,
+        "new_tier": new_tier,
+        "tier_upgraded": tier_changed and tier_order.index(new_tier) > tier_order.index(old_tier) if tier_changed else False,
+        "benefits": VIP_TIERS[new_tier]
+    }
+
+
+@router.get("/vip/all")
+def get_all_vip_customers(tier: Optional[str] = None, db: Session = Depends(get_db)):
+    """Get all customers by VIP tier"""
+    query = db.query(Customer)
+    
+    if tier:
+        query = query.filter(Customer.vip_tier == tier)
+    else:
+        # Exclude bronze by default to show VIP customers
+        query = query.filter(Customer.vip_tier.in_(["silver", "gold", "platinum"]))
+    
+    customers = query.order_by(Customer.total_spent.desc()).all()
+    
+    return [
+        {
+            "id": c.id,
+            "name": c.name,
+            "phone": c.phone,
+            "vip_tier": c.vip_tier or "bronze",
+            "total_spent": c.total_spent or 0,
+            "visit_count": c.visit_count or 0,
+            "discount_percent": VIP_TIERS.get(c.vip_tier or "bronze", {}).get("discount", 0)
+        }
+        for c in customers
+    ]
+
+
+@router.get("/vip/tiers")
+def get_vip_tier_info():
+    """Get VIP tier requirements and benefits"""
+    return {
+        "tiers": [
+            {
+                "name": name,
+                "min_spent": details["min_spent"],
+                "min_visits": details["min_visits"],
+                "discount_percent": details["discount"],
+                "points_multiplier": details["points_multiplier"]
+            }
+            for name, details in VIP_TIERS.items()
+        ]
+    }
+
+
+# Helper variable for tier order
+tier_order = ["bronze", "silver", "gold", "platinum"]

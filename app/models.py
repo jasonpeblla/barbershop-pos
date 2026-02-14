@@ -34,6 +34,9 @@ class Customer(Base):
     lifetime_points = Column(Integer, default=0)  # Total points ever earned
     birthday = Column(DateTime, nullable=True)  # Customer birthday for rewards
     birthday_discount_used_year = Column(Integer, nullable=True)  # Year discount was used
+    vip_tier = Column(String(20), default="bronze")  # bronze, silver, gold, platinum
+    total_spent = Column(Float, default=0.0)  # Total amount spent for tier calculation
+    visit_count = Column(Integer, default=0)  # Number of visits
     created_at = Column(DateTime, default=datetime.utcnow)
     
     orders = relationship("Order", back_populates="customer")
