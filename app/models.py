@@ -77,6 +77,8 @@ class ServiceType(Base):
     duration_minutes = Column(Integer, default=30)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
+    suggested_addons = Column(String(255), nullable=True)  # Comma-separated service IDs for upsells
+    upsell_message = Column(String(255), nullable=True)  # "Add a beard trim for just $10 more?"
 
 
 class Order(Base):

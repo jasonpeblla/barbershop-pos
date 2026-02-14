@@ -261,3 +261,149 @@ def get_service_current_price(service_id: int, db: Session = Depends(get_db)):
         "pricing_tier": tier,
         "savings": savings
     }
+
+
+# ===== UPSELL & ADD-ONS =====
+
+@router.get("/{service_id}/upsells")
+def get_service_upsells(service_id: int, db: Session = Depends(get_db)):
+    """Get suggested add-ons/upsells for a service"""
+    service = db.query(ServiceType).filter(ServiceType.id == service_id).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+    
+    upsells = []
+    
+    # Get configured upsells
+    if service.suggested_addons:
+        addon_ids = [int(x) for x in service.suggested_addons.split(",") if x.strip()]
+        for addon_id in addon_ids:
+            addon = db.query(ServiceType).filter(
+                ServiceType.id == addon_id,
+                ServiceType.is_active == True
+            ).first()
+            if addon:
+                tier = get_current_pricing_tier()
+                if tier == "peak" and addon.peak_price:
+                    price = addon.peak_price
+                elif tier == "off_peak" and addon.off_peak_price:
+                    price = addon.off_peak_price
+                else:
+                    price = addon.base_price
+                    
+                upsells.append({
+                    "id": addon.id,
+                    "name": addon.name,
+                    "price": price,
+                    "duration_minutes": addon.duration_minutes,
+                    "description": addon.description
+                })
+    
+    # Auto-suggest based on category
+    if not upsells:
+        if service.category == "haircut":
+            # Suggest beard services
+            beard_services = db.query(ServiceType).filter(
+                ServiceType.category == "beard",
+                ServiceType.is_active == True
+            ).limit(2).all()
+            upsells = [{"id": s.id, "name": s.name, "price": s.base_price, "duration_minutes": s.duration_minutes} for s in beard_services]
+        elif service.category == "beard":
+            # Suggest add-ons
+            addons = db.query(ServiceType).filter(
+                ServiceType.category == "addon",
+                ServiceType.is_active == True
+            ).limit(2).all()
+            upsells = [{"id": s.id, "name": s.name, "price": s.base_price, "duration_minutes": s.duration_minutes} for s in addons]
+    
+    return {
+        "service_id": service_id,
+        "service_name": service.name,
+        "upsell_message": service.upsell_message or f"Enhance your {service.name.lower()} with these add-ons:",
+        "suggested_addons": upsells
+    }
+
+
+@router.post("/{service_id}/set-upsells")
+def set_service_upsells(
+    service_id: int, 
+    addon_ids: str,  # Comma-separated IDs
+    upsell_message: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Configure suggested add-ons for a service"""
+    service = db.query(ServiceType).filter(ServiceType.id == service_id).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+    
+    service.suggested_addons = addon_ids
+    if upsell_message:
+        service.upsell_message = upsell_message
+    
+    db.commit()
+    
+    return {"message": "Upsells configured", "addon_ids": addon_ids}
+
+
+@router.get("/addons/popular")
+def get_popular_addons(db: Session = Depends(get_db)):
+    """Get most popular add-on services"""
+    from app.models import OrderService
+    from sqlalchemy import func
+    
+    # Get add-on category services
+    addons = db.query(ServiceType).filter(
+        ServiceType.category == "addon",
+        ServiceType.is_active == True
+    ).all()
+    
+    popular = []
+    for addon in addons:
+        count = db.query(func.count(OrderService.id)).filter(
+            OrderService.service_type_id == addon.id
+        ).scalar()
+        
+        popular.append({
+            "id": addon.id,
+            "name": addon.name,
+            "price": addon.base_price,
+            "times_ordered": count or 0
+        })
+    
+    return sorted(popular, key=lambda x: x["times_ordered"], reverse=True)
+
+
+@router.get("/combos/suggest")
+def suggest_combo(service_ids: str, db: Session = Depends(get_db)):
+    """Suggest combo deals based on selected services"""
+    selected_ids = [int(x) for x in service_ids.split(",") if x.strip()]
+    selected_services = db.query(ServiceType).filter(ServiceType.id.in_(selected_ids)).all()
+    
+    # Calculate individual total
+    individual_total = sum(s.base_price for s in selected_services)
+    
+    # Look for matching combos
+    combos = db.query(ServiceType).filter(
+        ServiceType.category == "combo",
+        ServiceType.is_active == True
+    ).all()
+    
+    suggestions = []
+    for combo in combos:
+        if combo.base_price < individual_total:
+            savings = individual_total - combo.base_price
+            if savings >= 5:  # Only suggest if meaningful savings
+                suggestions.append({
+                    "combo_id": combo.id,
+                    "combo_name": combo.name,
+                    "combo_price": combo.base_price,
+                    "individual_total": individual_total,
+                    "savings": round(savings, 2),
+                    "savings_percent": round((savings / individual_total) * 100, 1)
+                })
+    
+    return {
+        "selected_services": [{"id": s.id, "name": s.name, "price": s.base_price} for s in selected_services],
+        "individual_total": individual_total,
+        "combo_suggestions": sorted(suggestions, key=lambda x: x["savings"], reverse=True)
+    }
