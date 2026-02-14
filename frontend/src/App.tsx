@@ -194,6 +194,7 @@ function App() {
   const [feedbackType, setFeedbackType] = useState<"bug" | "feature">("bug")
   const [feedbackTitle, setFeedbackTitle] = useState("")
   const [feedbackDescription, setFeedbackDescription] = useState("")
+  const [feedbackEmail, setFeedbackEmail] = useState("")
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
 
   // Appointments
@@ -497,6 +498,7 @@ function App() {
         type: feedbackType,
         title: feedbackTitle.trim(),
         description: feedbackDescription.trim(),
+        email: feedbackEmail.trim() || null,
         page_url: window.location.href,
         user_agent: navigator.userAgent
       })
@@ -507,6 +509,7 @@ function App() {
       setFeedbackSubmitted(false)
       setFeedbackTitle("")
       setFeedbackDescription("")
+      setFeedbackEmail("")
     }, 2000)
   }
 
@@ -1199,6 +1202,13 @@ function App() {
                 onChange={e => setFeedbackDescription(e.target.value)}
                 rows={4}
                 className="w-full p-3 border-2 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
+              />
+              <input
+                type="email"
+                placeholder="Email (optional - for follow-up)"
+                value={feedbackEmail}
+                onChange={e => setFeedbackEmail(e.target.value)}
+                className="w-full p-3 border-2 rounded-lg focus:border-blue-500 focus:outline-none"
               />
             </div>
             
@@ -2205,6 +2215,15 @@ function App() {
         {viewMode === "shop" && <ShopView />}
         {viewMode === "reports" && <ReportsView />}
       </main>
+
+      {/* Floating Feedback Button */}
+      <button
+        onClick={() => setShowFeedbackModal(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 hover:scale-110 transition-all z-50 flex items-center justify-center text-2xl"
+        title="Send Feedback"
+      >
+        💬
+      </button>
 
       {/* Modals */}
       {showPaymentModal && <PaymentModal />}

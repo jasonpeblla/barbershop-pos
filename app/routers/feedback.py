@@ -1,21 +1,20 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
 from app.database import get_db
+from app.models import Feedback
 
 router = APIRouter(prefix="/feedback", tags=["feedback"])
-
-# In-memory feedback storage
-FEEDBACK_STORE: List[dict] = []
 
 
 class FeedbackCreate(BaseModel):
     type: str  # "bug" or "feature"
     title: str
     description: str
+    email: Optional[str] = None
     page_url: Optional[str] = None
     user_agent: Optional[str] = None
 
@@ -25,49 +24,59 @@ class FeedbackResponse(BaseModel):
     type: str
     title: str
     description: str
+    email: Optional[str]
     status: str
-    created_at: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 @router.post("/", response_model=FeedbackResponse)
-def submit_feedback(feedback: FeedbackCreate):
+def submit_feedback(feedback: FeedbackCreate, db: Session = Depends(get_db)):
     """Submit bug report or feature request"""
-    new_id = len(FEEDBACK_STORE) + 1
-    entry = {
-        "id": new_id,
-        "type": feedback.type,
-        "title": feedback.title,
-        "description": feedback.description,
-        "page_url": feedback.page_url,
-        "user_agent": feedback.user_agent,
-        "status": "pending",
-        "created_at": datetime.utcnow().isoformat()
-    }
-    FEEDBACK_STORE.append(entry)
-    return entry
+    db_feedback = Feedback(
+        type=feedback.type,
+        title=feedback.title,
+        description=feedback.description,
+        email=feedback.email,
+        page_url=feedback.page_url,
+        user_agent=feedback.user_agent,
+        status="pending"
+    )
+    db.add(db_feedback)
+    db.commit()
+    db.refresh(db_feedback)
+    return db_feedback
 
 
 @router.get("/", response_model=List[FeedbackResponse])
-def list_feedback(type: Optional[str] = None, status: Optional[str] = None):
+def list_feedback(
+    type: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
     """List all feedback"""
-    results = FEEDBACK_STORE
+    query = db.query(Feedback)
     if type:
-        results = [f for f in results if f["type"] == type]
+        query = query.filter(Feedback.type == type)
     if status:
-        results = [f for f in results if f["status"] == status]
-    return results
+        query = query.filter(Feedback.status == status)
+    return query.order_by(Feedback.created_at.desc()).limit(limit).all()
 
 
 @router.patch("/{feedback_id}/status")
-def update_feedback_status(feedback_id: int, status: str):
+def update_feedback_status(feedback_id: int, status: str, db: Session = Depends(get_db)):
     """Update feedback status"""
-    feedback = next((f for f in FEEDBACK_STORE if f["id"] == feedback_id), None)
+    feedback = db.query(Feedback).filter(Feedback.id == feedback_id).first()
     if not feedback:
-        return {"error": "Feedback not found"}
+        raise HTTPException(status_code=404, detail="Feedback not found")
     
     valid_statuses = ["pending", "reviewing", "planned", "in_progress", "completed", "wont_fix"]
     if status not in valid_statuses:
-        return {"error": f"Invalid status. Must be one of: {valid_statuses}"}
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
     
-    feedback["status"] = status
-    return feedback
+    feedback.status = status
+    db.commit()
+    return {"ok": True, "status": status}

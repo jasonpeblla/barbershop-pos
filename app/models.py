@@ -164,3 +164,17 @@ class Appointment(Base):
     customer = relationship("Customer")
     barber = relationship("Barber")
     service_type = relationship("ServiceType")
+
+
+class Feedback(Base):
+    __tablename__ = "feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    type = Column(String(50), nullable=False)  # "bug" or "feature"
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    email = Column(String(255), nullable=True)
+    page_url = Column(String(500), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    status = Column(String(50), default="pending")  # pending, reviewing, planned, in_progress, completed, wont_fix
+    created_at = Column(DateTime, default=datetime.utcnow)
