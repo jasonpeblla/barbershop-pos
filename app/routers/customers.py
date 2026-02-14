@@ -455,3 +455,139 @@ def get_vip_tier_info():
 
 # Helper variable for tier order
 tier_order = ["bronze", "silver", "gold", "platinum"]
+
+
+# ===== CUSTOMER TAGS/PREFERENCES =====
+
+PREDEFINED_TAGS = [
+    "prefers-quiet",
+    "chatty",
+    "senior",
+    "student",
+    "military",
+    "cash-only",
+    "card-preferred",
+    "walk-in-regular",
+    "appointment-only",
+    "sensitive-scalp",
+    "thick-hair",
+    "thinning-hair",
+    "beard-enthusiast",
+    "quick-service",
+    "takes-time",
+    "tips-well",
+    "first-responder",
+    "local-business",
+    "referred",
+    "influencer"
+]
+
+
+@router.get("/tags/available")
+def get_available_tags():
+    """Get list of predefined tags"""
+    return {
+        "tags": PREDEFINED_TAGS,
+        "categories": {
+            "personality": ["prefers-quiet", "chatty"],
+            "demographics": ["senior", "student", "military", "first-responder"],
+            "payment": ["cash-only", "card-preferred"],
+            "booking": ["walk-in-regular", "appointment-only"],
+            "hair_type": ["sensitive-scalp", "thick-hair", "thinning-hair", "beard-enthusiast"],
+            "service": ["quick-service", "takes-time"],
+            "business": ["local-business", "influencer", "tips-well"]
+        }
+    }
+
+
+@router.post("/{customer_id}/tags/add")
+def add_customer_tag(customer_id: int, tag: str, db: Session = Depends(get_db)):
+    """Add a tag to a customer"""
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    tag = tag.lower().strip()
+    current_tags = customer.tags.split(",") if customer.tags else []
+    
+    if tag in current_tags:
+        return {"message": "Tag already exists", "tags": current_tags}
+    
+    current_tags.append(tag)
+    customer.tags = ",".join(current_tags)
+    db.commit()
+    
+    return {"message": "Tag added", "tags": current_tags}
+
+
+@router.post("/{customer_id}/tags/remove")
+def remove_customer_tag(customer_id: int, tag: str, db: Session = Depends(get_db)):
+    """Remove a tag from a customer"""
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    tag = tag.lower().strip()
+    current_tags = customer.tags.split(",") if customer.tags else []
+    
+    if tag not in current_tags:
+        return {"message": "Tag not found", "tags": current_tags}
+    
+    current_tags.remove(tag)
+    customer.tags = ",".join(current_tags) if current_tags else None
+    db.commit()
+    
+    return {"message": "Tag removed", "tags": current_tags}
+
+
+@router.get("/{customer_id}/tags")
+def get_customer_tags(customer_id: int, db: Session = Depends(get_db)):
+    """Get all tags for a customer"""
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    tags = customer.tags.split(",") if customer.tags else []
+    
+    return {
+        "customer_id": customer_id,
+        "customer_name": customer.name,
+        "tags": tags,
+        "communication_preference": customer.communication_preference or "any"
+    }
+
+
+@router.get("/by-tag/{tag}")
+def get_customers_by_tag(tag: str, db: Session = Depends(get_db)):
+    """Get all customers with a specific tag"""
+    tag = tag.lower().strip()
+    
+    customers = db.query(Customer).filter(
+        Customer.tags.contains(tag)
+    ).all()
+    
+    return [
+        {
+            "id": c.id,
+            "name": c.name,
+            "phone": c.phone,
+            "tags": c.tags.split(",") if c.tags else []
+        }
+        for c in customers
+    ]
+
+
+@router.patch("/{customer_id}/communication-preference")
+def set_communication_preference(customer_id: int, preference: str, db: Session = Depends(get_db)):
+    """Set customer's communication preference"""
+    if preference not in ["sms", "email", "any", "none"]:
+        raise HTTPException(status_code=400, detail="Invalid preference. Use: sms, email, any, or none")
+    
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    customer.communication_preference = preference
+    db.commit()
+    
+    return {"message": "Preference updated", "communication_preference": preference}
