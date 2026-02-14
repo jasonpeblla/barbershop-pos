@@ -212,6 +212,125 @@ def get_queue_stats(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/wait-times")
+def get_detailed_wait_times(db: Session = Depends(get_db)):
+    """Get detailed wait time analysis with historical data"""
+    from datetime import timedelta
+    from app.models import Order, TimeClock
+    
+    now = datetime.utcnow()
+    today = now.date()
+    
+    # Current queue status
+    waiting = db.query(WalkInQueue).filter(WalkInQueue.status == "waiting").count()
+    in_service = db.query(WalkInQueue).filter(WalkInQueue.status == "in_service").count()
+    
+    # Active barbers (clocked in today)
+    active_barbers = db.query(Barber).filter(Barber.is_available == True).count()
+    
+    # Historical average service time (last 7 days)
+    week_ago = now - timedelta(days=7)
+    completed_orders = db.query(Order).filter(
+        Order.status == "completed",
+        Order.completed_at >= week_ago,
+        Order.started_at.isnot(None)
+    ).all()
+    
+    avg_service_time = 25  # default
+    if completed_orders:
+        service_times = [
+            (o.completed_at - o.started_at).total_seconds() / 60
+            for o in completed_orders
+            if o.started_at and o.completed_at
+        ]
+        if service_times:
+            avg_service_time = sum(service_times) / len(service_times)
+    
+    # Calculate smart wait estimate
+    if active_barbers > 0:
+        # Time until current services complete (estimate half done)
+        current_wait = (in_service * avg_service_time * 0.5) / active_barbers
+        # Time for queue
+        queue_wait = (waiting * avg_service_time) / active_barbers
+        total_estimate = current_wait + queue_wait
+    else:
+        total_estimate = waiting * avg_service_time
+    
+    # Busiest hours analysis (for today)
+    hour_distribution = {}
+    today_entries = db.query(WalkInQueue).filter(
+        func.date(WalkInQueue.check_in_time) == today
+    ).all()
+    
+    for entry in today_entries:
+        hour = entry.check_in_time.hour
+        hour_distribution[hour] = hour_distribution.get(hour, 0) + 1
+    
+    busiest_hour = max(hour_distribution.items(), key=lambda x: x[1])[0] if hour_distribution else None
+    
+    return {
+        "current_queue": {
+            "waiting": waiting,
+            "in_service": in_service,
+            "active_barbers": active_barbers
+        },
+        "estimates": {
+            "new_walkin_wait_minutes": round(total_estimate),
+            "average_service_time": round(avg_service_time),
+            "historical_data_days": 7
+        },
+        "today_stats": {
+            "total_customers": len(today_entries),
+            "busiest_hour": f"{busiest_hour}:00" if busiest_hour else None,
+            "hourly_distribution": {f"{h}:00": c for h, c in sorted(hour_distribution.items())}
+        },
+        "recommendation": get_wait_recommendation(total_estimate)
+    }
+
+
+def get_wait_recommendation(wait_minutes: float) -> dict:
+    """Get a recommendation based on wait time"""
+    if wait_minutes <= 10:
+        return {"level": "low", "message": "Almost no wait - great time to come in!", "color": "green"}
+    elif wait_minutes <= 25:
+        return {"level": "moderate", "message": "Short wait expected", "color": "yellow"}
+    elif wait_minutes <= 45:
+        return {"level": "busy", "message": "Moderate wait - consider booking appointment", "color": "orange"}
+    else:
+        return {"level": "very_busy", "message": "Long wait - we recommend booking an appointment", "color": "red"}
+
+
+@router.get("/barber/{barber_id}/queue")
+def get_barber_specific_queue(barber_id: int, db: Session = Depends(get_db)):
+    """Get queue specifically waiting for a particular barber"""
+    entries = db.query(WalkInQueue).filter(
+        WalkInQueue.requested_barber_id == barber_id,
+        WalkInQueue.status.in_(["waiting", "called"])
+    ).order_by(WalkInQueue.position).all()
+    
+    barber = db.query(Barber).filter(Barber.id == barber_id).first()
+    if not barber:
+        raise HTTPException(status_code=404, detail="Barber not found")
+    
+    return {
+        "barber_id": barber_id,
+        "barber_name": barber.name,
+        "is_available": barber.is_available,
+        "queue_count": len(entries),
+        "estimated_wait": len(entries) * 25,
+        "customers": [
+            {
+                "id": e.id,
+                "customer_name": e.customer_name,
+                "position": e.position,
+                "service_notes": e.service_notes,
+                "wait_time": int((datetime.utcnow() - e.check_in_time).total_seconds() / 60)
+            }
+            for e in entries
+        ]
+    }
+
+
 @router.get("/{entry_id}/status")
 def get_queue_position(entry_id: int, db: Session = Depends(get_db)):
     """Get current position and estimated wait for a queue entry (for customer self-check)"""
