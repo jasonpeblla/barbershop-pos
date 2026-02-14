@@ -173,6 +173,8 @@ function App() {
   // Reports
   const [dailyReport, setDailyReport] = useState<any>(null)
   const [earningsReport, setEarningsReport] = useState<any>(null)
+  const [leaderboard, setLeaderboard] = useState<any>(null)
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState("today")
 
   // Barber management
   const [showBarberPanel, setShowBarberPanel] = useState(false)
@@ -304,12 +306,14 @@ function App() {
 
   const loadReports = async () => {
     try {
-      const [daily, earnings] = await Promise.all([
+      const [daily, earnings, board] = await Promise.all([
         fetch(`${API_BASE}/reports/daily`).then(r => r.json()),
-        fetch(`${API_BASE}/reports/earnings`).then(r => r.json())
+        fetch(`${API_BASE}/reports/earnings`).then(r => r.json()),
+        fetch(`${API_BASE}/reports/leaderboard?period=${leaderboardPeriod}`).then(r => r.json())
       ])
       setDailyReport(daily)
       setEarningsReport(earnings)
+      setLeaderboard(board)
     } catch (e) {
       console.error("Failed to load reports:", e)
     }
@@ -2097,6 +2101,62 @@ function App() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Leaderboard */}
+      {leaderboard && (
+        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl shadow-lg p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold">🏆 Leaderboard</h2>
+            <div className="flex gap-2">
+              {["today", "week", "month"].map(period => (
+                <button
+                  key={period}
+                  onClick={() => {
+                    setLeaderboardPeriod(period)
+                    fetch(`${API_BASE}/reports/leaderboard?period=${period}`)
+                      .then(r => r.json())
+                      .then(setLeaderboard)
+                  }}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    leaderboardPeriod === period
+                      ? "bg-amber-600 text-white"
+                      : "bg-white hover:bg-amber-100"
+                  }`}
+                >
+                  {period.charAt(0).toUpperCase() + period.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-3">
+            {leaderboard.leaderboard.map((entry: any) => (
+              <div
+                key={entry.barber_id}
+                className={`flex items-center justify-between p-4 rounded-xl ${
+                  entry.rank === 1 ? "bg-gradient-to-r from-yellow-200 to-amber-200" :
+                  entry.rank === 2 ? "bg-gradient-to-r from-gray-200 to-slate-200" :
+                  entry.rank === 3 ? "bg-gradient-to-r from-orange-200 to-amber-200" :
+                  "bg-white"
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  <span className="text-3xl">{entry.badge || `#${entry.rank}`}</span>
+                  <div>
+                    <div className="font-bold text-lg">{entry.barber_name}</div>
+                    <div className="text-sm text-gray-600">
+                      {entry.customers} customers • {entry.avg_tip_percent}% avg tip
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-green-600">${entry.revenue}</div>
+                  <div className="text-sm text-gray-500">+${entry.tips} tips</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
