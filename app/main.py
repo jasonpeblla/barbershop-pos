@@ -26,6 +26,7 @@ from app.routers import (
     referrals,
     business,
     quick,
+    dashboard,
 )
 
 # Seed data for barbershop services
@@ -137,6 +138,7 @@ app.include_router(memberships.router)
 app.include_router(referrals.router)
 app.include_router(business.router)
 app.include_router(quick.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/health")
