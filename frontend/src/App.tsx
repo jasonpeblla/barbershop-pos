@@ -161,6 +161,11 @@ function App() {
   const [walkInBarber, setWalkInBarber] = useState<number | null>(null)
   const [walkInNotes, setWalkInNotes] = useState("")
 
+  // Quick check-in
+  const [quickCheckInPhone, setQuickCheckInPhone] = useState("")
+  const [quickCheckInCustomer, setQuickCheckInCustomer] = useState<Customer | null>(null)
+  const quickCheckInTimeoutRef = useRef<number | null>(null)
+
   // Orders
   const [orders, setOrders] = useState<Order[]>([])
   const [orderStatusFilter, setOrderStatusFilter] = useState("all")
@@ -654,6 +659,47 @@ function App() {
     }
   }
 
+  const handleQuickCheckIn = (phone: string) => {
+    setQuickCheckInPhone(phone)
+    setQuickCheckInCustomer(null)
+    
+    if (quickCheckInTimeoutRef.current) {
+      clearTimeout(quickCheckInTimeoutRef.current)
+    }
+    
+    if (phone.length >= 7) {
+      quickCheckInTimeoutRef.current = window.setTimeout(async () => {
+        try {
+          const results = await fetch(`${API_BASE}/customers/search?q=${phone}`).then(r => r.json())
+          if (results.length > 0) {
+            setQuickCheckInCustomer(results[0])
+          }
+        } catch (e) {
+          console.error(e)
+        }
+      }, 300)
+    }
+  }
+
+  const addToQueueQuick = async (customer: Customer) => {
+    try {
+      await fetch(`${API_BASE}/queue/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_name: customer.name,
+          customer_phone: customer.phone,
+          customer_id: customer.id,
+          requested_barber_id: customer.preferred_barber_id || null,
+          service_notes: customer.preferred_cut || null
+        })
+      })
+      loadQueue()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const callCustomer = async (entryId: number) => {
     await fetch(`${API_BASE}/queue/${entryId}/call`, { method: "POST" })
     loadQueue()
@@ -1017,6 +1063,44 @@ function App() {
         </div>
       )}
       
+      {/* Quick Check-in */}
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <h3 className="font-bold text-gray-700 mb-3">📱 Quick Check-in</h3>
+        <div className="flex gap-3">
+          <input
+            type="tel"
+            placeholder="Enter phone number..."
+            value={quickCheckInPhone}
+            onChange={e => handleQuickCheckIn(e.target.value)}
+            className="flex-1 p-3 border-2 rounded-lg text-lg"
+          />
+          {quickCheckInCustomer && (
+            <button
+              onClick={async () => {
+                await addToQueueQuick(quickCheckInCustomer)
+                setQuickCheckInPhone("")
+                setQuickCheckInCustomer(null)
+              }}
+              className="px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700"
+            >
+              ✓ Check In
+            </button>
+          )}
+        </div>
+        {quickCheckInCustomer && (
+          <div className="mt-3 p-3 bg-green-50 rounded-lg flex items-center justify-between">
+            <div>
+              <span className="font-bold text-green-800">{quickCheckInCustomer.name}</span>
+              <span className="text-green-600 ml-2">{quickCheckInCustomer.phone}</span>
+              {quickCheckInCustomer.preferred_cut && (
+                <span className="text-sm text-green-600 ml-2">• {quickCheckInCustomer.preferred_cut}</span>
+              )}
+            </div>
+            <span className="text-green-500">✓ Found</span>
+          </div>
+        )}
+      </div>
+
       <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">📋 Walk-in Queue</h2>
