@@ -30,6 +30,8 @@ class Customer(Base):
     preferred_barber_id = Column(Integer, ForeignKey("barbers.id"), nullable=True)
     preferred_cut = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
+    loyalty_points = Column(Integer, default=0)  # Current points balance
+    lifetime_points = Column(Integer, default=0)  # Total points ever earned
     created_at = Column(DateTime, default=datetime.utcnow)
     
     orders = relationship("Order", back_populates="customer")
@@ -178,3 +180,19 @@ class Feedback(Base):
     user_agent = Column(String(500), nullable=True)
     status = Column(String(50), default="pending")  # pending, reviewing, planned, in_progress, completed, wont_fix
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class LoyaltyTransaction(Base):
+    """Track loyalty points earned and redeemed"""
+    __tablename__ = "loyalty_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    points = Column(Integer, nullable=False)  # positive = earned, negative = redeemed
+    transaction_type = Column(String(50), nullable=False)  # earned, redeemed, bonus, adjustment
+    description = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    customer = relationship("Customer")
+    order = relationship("Order")
