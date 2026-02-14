@@ -232,6 +232,7 @@ function App() {
   useEffect(() => {
     if (viewMode === "queue") {
       loadQueue()
+      loadReports() // Also load today's stats
       const interval = setInterval(loadQueue, 10000) // Refresh every 10s
       return () => clearInterval(interval)
     }
@@ -947,6 +948,31 @@ function App() {
   // Queue View
   const QueueView = () => (
     <div className="max-w-4xl mx-auto">
+      {/* Today's quick stats */}
+      {dailyReport && (
+        <div className="bg-gradient-to-r from-blue-600 to-slate-700 rounded-xl shadow-lg p-6 mb-6 text-white">
+          <h3 className="text-lg font-semibold mb-3 opacity-80">Today's Performance</h3>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold">${dailyReport.summary.total_revenue.toFixed(0)}</div>
+              <div className="text-sm opacity-70">Revenue</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold">{dailyReport.summary.num_customers}</div>
+              <div className="text-sm opacity-70">Customers</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold">${dailyReport.summary.total_tips.toFixed(0)}</div>
+              <div className="text-sm opacity-70">Tips</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold">${dailyReport.summary.average_ticket.toFixed(0)}</div>
+              <div className="text-sm opacity-70">Avg Ticket</div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">📋 Walk-in Queue</h2>
