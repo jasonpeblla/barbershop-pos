@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from datetime import datetime, date, timedelta
 
 from app.database import get_db
-from app.models import Barber, TimeClock, Order, Payment
+from app.models import Barber, TimeClock, Order, Payment, BarberBreak
 
 router = APIRouter(prefix="/barbers", tags=["barbers"])
 
@@ -213,4 +213,200 @@ def get_barber_earnings(
         "commission_earned": round(commission, 2),
         "total_tips": round(total_tips, 2),
         "total_earnings": round(commission + total_tips, 2)
+    }
+
+
+# ===== BREAK MANAGEMENT =====
+
+class BreakStart(BaseModel):
+    break_type: str = "short"  # lunch, short, personal
+    duration_minutes: Optional[int] = None  # If set, auto-schedules end time
+    notes: Optional[str] = None
+
+
+BREAK_DURATIONS = {
+    "short": 15,
+    "lunch": 30,
+    "personal": 15
+}
+
+
+@router.post("/{barber_id}/break/start")
+def start_break(barber_id: int, data: BreakStart, db: Session = Depends(get_db)):
+    """Start a break for a barber"""
+    barber = db.query(Barber).filter(Barber.id == barber_id).first()
+    if not barber:
+        raise HTTPException(status_code=404, detail="Barber not found")
+    
+    # Check if already on break
+    active_break = db.query(BarberBreak).filter(
+        BarberBreak.barber_id == barber_id,
+        BarberBreak.end_time.is_(None)
+    ).first()
+    
+    if active_break:
+        raise HTTPException(status_code=400, detail="Already on break")
+    
+    # Calculate scheduled end time
+    duration = data.duration_minutes or BREAK_DURATIONS.get(data.break_type, 15)
+    scheduled_end = datetime.utcnow() + timedelta(minutes=duration)
+    
+    # Create break record
+    break_record = BarberBreak(
+        barber_id=barber_id,
+        break_type=data.break_type,
+        scheduled_end_time=scheduled_end,
+        notes=data.notes
+    )
+    db.add(break_record)
+    
+    # Mark barber as unavailable
+    barber.is_available = False
+    db.commit()
+    db.refresh(break_record)
+    
+    return {
+        "message": f"Break started ({data.break_type})",
+        "break_id": break_record.id,
+        "start_time": break_record.start_time,
+        "scheduled_end": scheduled_end,
+        "duration_minutes": duration
+    }
+
+
+@router.post("/{barber_id}/break/end")
+def end_break(barber_id: int, db: Session = Depends(get_db)):
+    """End a barber's current break"""
+    barber = db.query(Barber).filter(Barber.id == barber_id).first()
+    if not barber:
+        raise HTTPException(status_code=404, detail="Barber not found")
+    
+    active_break = db.query(BarberBreak).filter(
+        BarberBreak.barber_id == barber_id,
+        BarberBreak.end_time.is_(None)
+    ).first()
+    
+    if not active_break:
+        raise HTTPException(status_code=400, detail="Not currently on break")
+    
+    active_break.end_time = datetime.utcnow()
+    barber.is_available = True
+    db.commit()
+    
+    duration = (active_break.end_time - active_break.start_time).total_seconds() / 60
+    
+    return {
+        "message": "Break ended",
+        "break_type": active_break.break_type,
+        "duration_minutes": round(duration, 1),
+        "was_over_scheduled": duration > (active_break.scheduled_end_time - active_break.start_time).total_seconds() / 60 if active_break.scheduled_end_time else False
+    }
+
+
+@router.get("/{barber_id}/break/status")
+def get_break_status(barber_id: int, db: Session = Depends(get_db)):
+    """Check if barber is currently on break"""
+    barber = db.query(Barber).filter(Barber.id == barber_id).first()
+    if not barber:
+        raise HTTPException(status_code=404, detail="Barber not found")
+    
+    active_break = db.query(BarberBreak).filter(
+        BarberBreak.barber_id == barber_id,
+        BarberBreak.end_time.is_(None)
+    ).first()
+    
+    if not active_break:
+        return {
+            "on_break": False,
+            "barber_name": barber.name,
+            "is_available": barber.is_available
+        }
+    
+    elapsed = (datetime.utcnow() - active_break.start_time).total_seconds() / 60
+    remaining = 0
+    over_time = False
+    
+    if active_break.scheduled_end_time:
+        remaining = (active_break.scheduled_end_time - datetime.utcnow()).total_seconds() / 60
+        if remaining < 0:
+            over_time = True
+            remaining = abs(remaining)
+    
+    return {
+        "on_break": True,
+        "barber_name": barber.name,
+        "break_type": active_break.break_type,
+        "start_time": active_break.start_time,
+        "elapsed_minutes": round(elapsed, 1),
+        "scheduled_end": active_break.scheduled_end_time,
+        "remaining_minutes": round(remaining, 1) if not over_time else 0,
+        "over_time": over_time,
+        "over_by_minutes": round(remaining, 1) if over_time else 0
+    }
+
+
+@router.get("/breaks/active")
+def get_all_active_breaks(db: Session = Depends(get_db)):
+    """Get all barbers currently on break"""
+    active_breaks = db.query(BarberBreak).filter(
+        BarberBreak.end_time.is_(None)
+    ).all()
+    
+    result = []
+    for brk in active_breaks:
+        barber = db.query(Barber).filter(Barber.id == brk.barber_id).first()
+        elapsed = (datetime.utcnow() - brk.start_time).total_seconds() / 60
+        
+        over_time = False
+        remaining = 0
+        if brk.scheduled_end_time:
+            remaining = (brk.scheduled_end_time - datetime.utcnow()).total_seconds() / 60
+            if remaining < 0:
+                over_time = True
+                remaining = abs(remaining)
+        
+        result.append({
+            "break_id": brk.id,
+            "barber_id": brk.barber_id,
+            "barber_name": barber.name if barber else "Unknown",
+            "break_type": brk.break_type,
+            "start_time": brk.start_time,
+            "elapsed_minutes": round(elapsed, 1),
+            "over_time": over_time,
+            "over_by_minutes": round(remaining, 1) if over_time else 0
+        })
+    
+    return result
+
+
+@router.get("/{barber_id}/breaks/today")
+def get_barber_breaks_today(barber_id: int, db: Session = Depends(get_db)):
+    """Get all breaks for a barber today"""
+    today = date.today()
+    
+    breaks = db.query(BarberBreak).filter(
+        BarberBreak.barber_id == barber_id,
+        func.date(BarberBreak.start_time) == today
+    ).order_by(BarberBreak.start_time).all()
+    
+    total_break_time = 0
+    for brk in breaks:
+        if brk.end_time:
+            total_break_time += (brk.end_time - brk.start_time).total_seconds() / 60
+    
+    return {
+        "barber_id": barber_id,
+        "date": today.isoformat(),
+        "total_break_minutes": round(total_break_time, 1),
+        "break_count": len([b for b in breaks if b.end_time]),
+        "breaks": [
+            {
+                "id": b.id,
+                "break_type": b.break_type,
+                "start_time": b.start_time,
+                "end_time": b.end_time,
+                "duration_minutes": round((b.end_time - b.start_time).total_seconds() / 60, 1) if b.end_time else None
+            }
+            for b in breaks
+        ]
     }

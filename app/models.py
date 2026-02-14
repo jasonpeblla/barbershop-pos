@@ -366,6 +366,21 @@ class BarberDayOff(Base):
     barber = relationship("Barber")
 
 
+class BarberBreak(Base):
+    """Track barber breaks during the day"""
+    __tablename__ = "barber_breaks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    barber_id = Column(Integer, ForeignKey("barbers.id"), nullable=False)
+    break_type = Column(String(50), nullable=False)  # lunch, short, personal
+    start_time = Column(DateTime, default=datetime.utcnow)
+    end_time = Column(DateTime, nullable=True)
+    scheduled_end_time = Column(DateTime, nullable=True)  # When break should end
+    notes = Column(String(255), nullable=True)
+
+    barber = relationship("Barber")
+
+
 class Product(Base):
     """Retail products for sale"""
     __tablename__ = "products"
