@@ -120,6 +120,1830 @@ const CATEGORIES = [
   { id: "addon", label: "✨ Add-ons", color: "purple" },
 ]
 
+const PRODUCT_CATEGORIES = [
+  { id: "styling", label: "💇 Styling" },
+  { id: "beard", label: "🧔 Beard" },
+  { id: "haircare", label: "🧴 Hair Care" },
+  { id: "shaving", label: "🪒 Shaving" },
+  { id: "tools", label: "✂️ Tools" },
+]
+
+// =============================================================================
+// STANDALONE COMPONENTS (moved outside App to prevent re-mount on state change)
+// =============================================================================
+
+// Payment Modal
+interface PaymentModalProps {
+  subtotal: number
+  tax: number
+  tipAmount: string
+  tipPercentage: number | null
+  paymentMethod: string
+  processingPayment: boolean
+  setTipAmount: (v: string) => void
+  setTipPercentage: (v: number | null) => void
+  setTipByPercentage: (pct: number) => void
+  setPaymentMethod: (v: string) => void
+  processPayment: () => void
+  onClose: () => void
+}
+
+function PaymentModal({
+  subtotal, tax, tipAmount, tipPercentage, paymentMethod, processingPayment,
+  setTipAmount, setTipPercentage, setTipByPercentage, setPaymentMethod,
+  processPayment, onClose
+}: PaymentModalProps) {
+  const tip = parseFloat(tipAmount) || 0
+  const total = subtotal + tax + tip
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-lg w-full mx-4">
+        <h2 className="text-2xl font-bold mb-6 text-center">Payment</h2>
+
+        <div className="bg-gray-50 rounded-lg p-4 mb-6">
+          <div className="flex justify-between mb-2">
+            <span>Subtotal</span>
+            <span>${subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between mb-2">
+            <span>Tax (8.75%)</span>
+            <span>${tax.toFixed(2)}</span>
+          </div>
+
+          <div className="border-t pt-3 mt-3">
+            <p className="text-sm font-semibold text-gray-700 mb-2">Add Tip</p>
+            <div className="grid grid-cols-4 gap-2 mb-2">
+              {[15, 18, 20, 25].map(pct => (
+                <button
+                  key={pct}
+                  onClick={() => setTipByPercentage(pct)}
+                  className={`py-2 rounded-lg text-sm font-semibold transition ${
+                    tipPercentage === pct
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 hover:bg-gray-300"
+                  }`}
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              placeholder="Custom tip"
+              value={tipAmount}
+              onChange={e => { setTipAmount(e.target.value); setTipPercentage(null) }}
+              className="w-full p-2 border rounded-lg"
+            />
+          </div>
+
+          <div className="flex justify-between text-2xl font-bold pt-3 mt-3 border-t">
+            <span>Total</span>
+            <span className="text-green-600">${total.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {[
+            { id: "card", label: "💳 Card" },
+            { id: "cash", label: "💵 Cash" },
+            { id: "apple_pay", label: "🍎 Apple Pay" },
+          ].map(method => (
+            <button
+              key={method.id}
+              onClick={() => setPaymentMethod(method.id)}
+              className={`p-4 rounded-xl border-2 transition ${
+                paymentMethod === method.id
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              <div className="text-center font-semibold">{method.label}</div>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-4 bg-gray-200 rounded-xl font-bold hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={processPayment}
+            disabled={processingPayment}
+            className="flex-1 py-4 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:bg-gray-300"
+          >
+            {processingPayment ? "Processing..." : "Complete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// New Customer Modal
+interface NewCustomerModalProps {
+  newCustomerName: string
+  newCustomerPhone: string
+  setNewCustomerName: (v: string) => void
+  setNewCustomerPhone: (v: string) => void
+  createCustomer: () => void
+  onClose: () => void
+}
+
+function NewCustomerModal({
+  newCustomerName, newCustomerPhone,
+  setNewCustomerName, setNewCustomerPhone,
+  createCustomer, onClose
+}: NewCustomerModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+        <h2 className="text-2xl font-bold mb-6 text-center">New Customer</h2>
+        <div className="space-y-4">
+          <input
+            type="text"
+            placeholder="Name"
+            value={newCustomerName}
+            onChange={e => setNewCustomerName(e.target.value)}
+            className="w-full p-3 border-2 rounded-lg"
+          />
+          <input
+            type="tel"
+            placeholder="Phone"
+            value={newCustomerPhone}
+            onChange={e => setNewCustomerPhone(e.target.value)}
+            className="w-full p-3 border-2 rounded-lg"
+          />
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 py-4 bg-gray-200 rounded-xl font-bold hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={createCustomer}
+            disabled={!newCustomerName || !newCustomerPhone}
+            className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-gray-300"
+          >
+            Add
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Walk-in Modal
+interface WalkInModalProps {
+  walkInName: string
+  walkInPhone: string
+  walkInBarber: number | null
+  walkInNotes: string
+  barbers: Barber[]
+  setWalkInName: (v: string) => void
+  setWalkInPhone: (v: string) => void
+  setWalkInBarber: (v: number | null) => void
+  setWalkInNotes: (v: string) => void
+  addToQueue: () => void
+  onClose: () => void
+}
+
+function WalkInModal({
+  walkInName, walkInPhone, walkInBarber, walkInNotes, barbers,
+  setWalkInName, setWalkInPhone, setWalkInBarber, setWalkInNotes,
+  addToQueue, onClose
+}: WalkInModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+        <h2 className="text-2xl font-bold mb-6 text-center">Add to Queue</h2>
+        <div className="space-y-4">
+          <input
+            type="text"
+            placeholder="Customer Name *"
+            value={walkInName}
+            onChange={e => setWalkInName(e.target.value)}
+            className="w-full p-3 border-2 rounded-lg"
+          />
+          <input
+            type="tel"
+            placeholder="Phone (optional)"
+            value={walkInPhone}
+            onChange={e => setWalkInPhone(e.target.value)}
+            className="w-full p-3 border-2 rounded-lg"
+          />
+          <select
+            value={walkInBarber || ""}
+            onChange={e => setWalkInBarber(e.target.value ? parseInt(e.target.value) : null)}
+            className="w-full p-3 border-2 rounded-lg"
+          >
+            <option value="">Any available barber</option>
+            {barbers.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            placeholder="Service notes (optional)"
+            value={walkInNotes}
+            onChange={e => setWalkInNotes(e.target.value)}
+            className="w-full p-3 border-2 rounded-lg"
+          />
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 py-4 bg-gray-200 rounded-xl font-bold hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={addToQueue}
+            disabled={!walkInName}
+            className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-gray-300"
+          >
+            Add to Queue
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Feedback Modal
+interface FeedbackModalProps {
+  feedbackType: "bug" | "feature"
+  feedbackTitle: string
+  feedbackDescription: string
+  feedbackEmail: string
+  feedbackSubmitted: boolean
+  setFeedbackType: (v: "bug" | "feature") => void
+  setFeedbackTitle: (v: string) => void
+  setFeedbackDescription: (v: string) => void
+  setFeedbackEmail: (v: string) => void
+  submitFeedback: () => void
+  onClose: () => void
+}
+
+function FeedbackModal({
+  feedbackType, feedbackTitle, feedbackDescription, feedbackEmail, feedbackSubmitted,
+  setFeedbackType, setFeedbackTitle, setFeedbackDescription, setFeedbackEmail,
+  submitFeedback, onClose
+}: FeedbackModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full mx-4">
+        {feedbackSubmitted ? (
+          <div className="text-center py-8">
+            <div className="text-5xl mb-4">✅</div>
+            <h2 className="text-2xl font-bold text-green-600">Thank you!</h2>
+            <p className="text-gray-500 mt-2">Your feedback has been submitted.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">📝 Send Feedback</h2>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setFeedbackType("bug")}
+                className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                  feedbackType === "bug" ? "bg-red-600 text-white" : "bg-gray-100 hover:bg-gray-200"
+                }`}
+              >
+                🐛 Bug Report
+              </button>
+              <button
+                onClick={() => setFeedbackType("feature")}
+                className={`flex-1 py-3 rounded-lg font-semibold transition ${
+                  feedbackType === "feature" ? "bg-blue-600 text-white" : "bg-gray-100 hover:bg-gray-200"
+                }`}
+              >
+                💡 Feature Request
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder={feedbackType === "bug" ? "What went wrong?" : "What would you like?"}
+                value={feedbackTitle}
+                onChange={e => setFeedbackTitle(e.target.value)}
+                className="w-full p-3 border-2 rounded-lg focus:border-blue-500 focus:outline-none"
+              />
+              <textarea
+                placeholder="Describe in detail..."
+                value={feedbackDescription}
+                onChange={e => setFeedbackDescription(e.target.value)}
+                rows={4}
+                className="w-full p-3 border-2 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
+              />
+              <input
+                type="email"
+                placeholder="Email (optional - for follow-up)"
+                value={feedbackEmail}
+                onChange={e => setFeedbackEmail(e.target.value)}
+                className="w-full p-3 border-2 rounded-lg focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={onClose}
+                className="flex-1 py-3 bg-gray-200 rounded-lg font-semibold hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitFeedback}
+                disabled={!feedbackTitle.trim() || !feedbackDescription.trim()}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300"
+              >
+                Submit
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Cash Drawer Modal
+interface CashDrawerModalProps {
+  drawerStatus: any
+  cashAmount: string
+  cashNote: string
+  setCashAmount: (v: string) => void
+  setCashNote: (v: string) => void
+  openDrawer: () => void
+  closeDrawer: () => void
+  addCash: () => void
+  removeCash: () => void
+  onClose: () => void
+}
+
+function CashDrawerModal({
+  drawerStatus, cashAmount, cashNote,
+  setCashAmount, setCashNote,
+  openDrawer, closeDrawer, addCash, removeCash, onClose
+}: CashDrawerModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">💰 Cash Drawer</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        
+        {drawerStatus && (
+          <>
+            <div className={`p-4 rounded-lg mb-6 ${drawerStatus.is_open ? "bg-green-50" : "bg-gray-50"}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`w-3 h-3 rounded-full ${drawerStatus.is_open ? "bg-green-500" : "bg-gray-400"}`}></span>
+                <span className="font-semibold">{drawerStatus.is_open ? "Drawer Open" : "Drawer Closed"}</span>
+              </div>
+              
+              {drawerStatus.is_open && (
+                <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
+                  <div>
+                    <div className="text-gray-500">Starting</div>
+                    <div className="font-bold">${drawerStatus.starting_cash.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Cash Sales</div>
+                    <div className="font-bold text-green-600">${drawerStatus.cash_sales.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Added</div>
+                    <div className="font-bold text-blue-600">+${drawerStatus.cash_added.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Removed</div>
+                    <div className="font-bold text-red-600">-${drawerStatus.cash_removed.toFixed(2)}</div>
+                  </div>
+                </div>
+              )}
+              
+              {drawerStatus.is_open && (
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Current Cash</span>
+                    <span className="text-2xl font-bold text-green-600">${drawerStatus.current_cash.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {!drawerStatus.is_open ? (
+              <div>
+                <label className="text-sm font-semibold text-gray-600">Starting Cash</label>
+                <input
+                  type="number"
+                  placeholder="200.00"
+                  value={cashAmount}
+                  onChange={e => setCashAmount(e.target.value)}
+                  className="w-full p-3 border rounded-lg mb-4"
+                />
+                <button
+                  onClick={openDrawer}
+                  className="w-full py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700"
+                >
+                  Open Drawer
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    value={cashAmount}
+                    onChange={e => setCashAmount(e.target.value)}
+                    className="flex-1 p-3 border rounded-lg"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Note (optional)"
+                    value={cashNote}
+                    onChange={e => setCashNote(e.target.value)}
+                    className="flex-1 p-3 border rounded-lg"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={addCash}
+                    disabled={!cashAmount}
+                    className="py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300"
+                  >
+                    + Add Cash
+                  </button>
+                  <button
+                    onClick={removeCash}
+                    disabled={!cashAmount}
+                    className="py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 disabled:bg-gray-300"
+                  >
+                    - Remove Cash
+                  </button>
+                </div>
+                <button
+                  onClick={closeDrawer}
+                  className="w-full py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700"
+                >
+                  Close & Reconcile
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Customer Profile Modal
+interface CustomerProfileModalProps {
+  customerProfile: any
+  loyaltyBalance: any
+  onClose: () => void
+}
+
+function CustomerProfileModal({ customerProfile, loyaltyBalance, onClose }: CustomerProfileModalProps) {
+  if (!customerProfile) return null
+  const { customer: cust, stats, recent_visits } = customerProfile
+  
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-slate-700 p-6 rounded-t-2xl text-white">
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-2xl font-bold">{cust.name}</h2>
+              <p className="text-blue-100">{cust.phone}</p>
+              {cust.email && <p className="text-blue-100 text-sm">{cust.email}</p>}
+            </div>
+            <button 
+              onClick={onClose}
+              className="text-white/80 hover:text-white text-2xl"
+            >
+              ✕
+            </button>
+          </div>
+          {cust.preferred_cut && (
+            <div className="mt-3 bg-white/20 rounded-lg px-3 py-2 text-sm">
+              ✂️ Preferred: {cust.preferred_cut}
+            </div>
+          )}
+        </div>
+        
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-4 p-6 bg-gray-50">
+          <div className="text-center">
+            <div className="text-3xl font-bold text-blue-600">{stats.total_visits}</div>
+            <div className="text-sm text-gray-500">Total Visits</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-green-600">${stats.total_spent.toFixed(0)}</div>
+            <div className="text-sm text-gray-500">Total Spent</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-purple-600">${stats.average_spend.toFixed(0)}</div>
+            <div className="text-sm text-gray-500">Avg per Visit</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-amber-600">${stats.average_tip.toFixed(0)}</div>
+            <div className="text-sm text-gray-500">Avg Tip</div>
+          </div>
+        </div>
+
+        {/* Loyalty Points */}
+        {loyaltyBalance && (
+          <div className="p-6 border-b bg-gradient-to-r from-yellow-50 to-amber-50">
+            <h3 className="font-bold text-gray-700 mb-3">⭐ Loyalty Points</h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-4xl font-bold text-amber-600">{loyaltyBalance.current_points}</div>
+                <div className="text-sm text-gray-500">Current Points</div>
+                <div className="text-xs text-gray-400">Worth ${loyaltyBalance.redemption_value.toFixed(2)} in rewards</div>
+              </div>
+              <div className="text-right">
+                <div className="text-xl font-semibold text-gray-600">{loyaltyBalance.lifetime_points}</div>
+                <div className="text-sm text-gray-500">Lifetime Points</div>
+              </div>
+            </div>
+            {loyaltyBalance.current_points >= 100 && (
+              <div className="mt-4 p-3 bg-amber-100 rounded-lg text-amber-800 text-sm">
+                🎉 Eligible for ${Math.floor(loyaltyBalance.current_points / 100)} discount!
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Favorite Services */}
+        {stats.favorite_services.length > 0 && (
+          <div className="p-6 border-b">
+            <h3 className="font-bold text-gray-700 mb-3">💈 Favorite Services</h3>
+            <div className="flex flex-wrap gap-2">
+              {stats.favorite_services.map((s: any, i: number) => (
+                <span key={i} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                  {s.name} ({s.count}x)
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Notes */}
+        {cust.notes && (
+          <div className="p-6 border-b">
+            <h3 className="font-bold text-gray-700 mb-2">📝 Notes</h3>
+            <p className="text-gray-600 bg-yellow-50 p-3 rounded-lg">{cust.notes}</p>
+          </div>
+        )}
+        
+        {/* Recent Visits */}
+        <div className="p-6">
+          <h3 className="font-bold text-gray-700 mb-3">🕐 Recent Visits</h3>
+          {recent_visits.length === 0 ? (
+            <p className="text-gray-400 text-center py-4">No visits yet</p>
+          ) : (
+            <div className="space-y-3">
+              {recent_visits.slice(0, 5).map((visit: any) => (
+                <div key={visit.order_id} className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-sm text-gray-500">
+                      {new Date(visit.date).toLocaleDateString()} · Order #{visit.order_id}
+                    </span>
+                    <span className="font-bold text-green-600">${visit.total.toFixed(2)}</span>
+                  </div>
+                  <div className="text-sm">
+                    {visit.services.map((s: any, i: number) => (
+                      <span key={i} className="mr-2">{s.name}</span>
+                    ))}
+                  </div>
+                  {visit.tip > 0 && (
+                    <div className="text-xs text-gray-500 mt-1">Tip: ${visit.tip.toFixed(2)}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* Footer */}
+        <div className="p-6 border-t bg-gray-50 rounded-b-2xl">
+          <p className="text-center text-sm text-gray-500">
+            Member since {new Date(cust.member_since).toLocaleDateString()}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Barber Panel Modal
+interface BarberPanelProps {
+  barbers: Barber[]
+  clockIn: (id: number) => void
+  clockOut: (id: number) => void
+  onClose: () => void
+}
+
+function BarberPanel({ barbers, clockIn, clockOut, onClose }: BarberPanelProps) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">👔 Barber Management</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+        
+        <div className="space-y-4">
+          {barbers.map(b => (
+            <div key={b.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
+              <div>
+                <div className="font-semibold text-lg">{b.name}</div>
+                <div className="flex items-center gap-2 text-sm">
+                  {b.is_clocked_in ? (
+                    <span className="text-green-600 flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      Clocked In
+                    </span>
+                  ) : (
+                    <span className="text-gray-500">Not clocked in</span>
+                  )}
+                  {b.active_orders && b.active_orders > 0 && (
+                    <span className="text-blue-600">· {b.active_orders} active</span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => b.is_clocked_in ? clockOut(b.id) : clockIn(b.id)}
+                className={`px-4 py-2 rounded-lg font-semibold ${
+                  b.is_clocked_in
+                    ? "bg-red-100 text-red-600 hover:bg-red-200"
+                    : "bg-green-100 text-green-600 hover:bg-green-200"
+                }`}
+              >
+                {b.is_clocked_in ? "Clock Out" : "Clock In"}
+              </button>
+            </div>
+          ))}
+        </div>
+        
+        <button
+          onClick={onClose}
+          className="w-full mt-6 py-3 bg-gray-200 rounded-lg font-semibold hover:bg-gray-300"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Appointment Booking Modal
+interface AppointmentModalProps {
+  services: ServiceType[]
+  barbers: Barber[]
+  appointmentDate: string
+  timeSlots: TimeSlot[]
+  selectedSlot: TimeSlot | null
+  selectedServiceForAppt: ServiceType | null
+  selectedBarberForAppt: Barber | null
+  apptCustomerName: string
+  apptCustomerPhone: string
+  bookingStep: "service" | "time" | "details"
+  setAppointmentDate: (v: string) => void
+  setSelectedSlot: (v: TimeSlot | null) => void
+  setSelectedServiceForAppt: (v: ServiceType | null) => void
+  setSelectedBarberForAppt: (v: Barber | null) => void
+  setApptCustomerName: (v: string) => void
+  setApptCustomerPhone: (v: string) => void
+  setBookingStep: (v: "service" | "time" | "details") => void
+  loadTimeSlots: () => void
+  bookAppointment: () => void
+  resetBookingForm: () => void
+  onClose: () => void
+}
+
+function AppointmentModal({
+  services, barbers, appointmentDate, timeSlots, selectedSlot,
+  selectedServiceForAppt, selectedBarberForAppt, apptCustomerName, apptCustomerPhone, bookingStep,
+  setAppointmentDate, setSelectedSlot, setSelectedServiceForAppt, setSelectedBarberForAppt,
+  setApptCustomerName, setApptCustomerPhone, setBookingStep,
+  loadTimeSlots, bookAppointment, resetBookingForm, onClose
+}: AppointmentModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">📅 Book Appointment</h2>
+          <button onClick={() => { onClose(); resetBookingForm() }} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="flex gap-4 mb-6">
+          {["service", "time", "details"].map((step) => (
+            <div key={step} className={`flex-1 h-2 rounded ${
+              bookingStep === step ? "bg-blue-600" :
+              (step === "service" || (step === "time" && bookingStep === "details")) ? "bg-blue-300" : "bg-gray-200"
+            }`} />
+          ))}
+        </div>
+
+        {/* Step 1: Select Service */}
+        {bookingStep === "service" && (
+          <div>
+            <h3 className="font-semibold mb-4">Select Service</h3>
+            <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
+              {services.map(svc => (
+                <button
+                  key={svc.id}
+                  onClick={() => setSelectedServiceForAppt(svc)}
+                  className={`p-4 rounded-lg border-2 text-left transition ${
+                    selectedServiceForAppt?.id === svc.id
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-blue-300"
+                  }`}
+                >
+                  <div className="font-semibold">{svc.name}</div>
+                  <div className="text-sm text-gray-500">{svc.duration_minutes} min · ${svc.base_price}</div>
+                </button>
+              ))}
+            </div>
+            
+            <h3 className="font-semibold mt-6 mb-4">Preferred Barber (Optional)</h3>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setSelectedBarberForAppt(null)}
+                className={`px-4 py-2 rounded-lg ${!selectedBarberForAppt ? "bg-blue-600 text-white" : "bg-gray-100"}`}
+              >
+                Any
+              </button>
+              {barbers.map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => setSelectedBarberForAppt(b)}
+                  className={`px-4 py-2 rounded-lg ${selectedBarberForAppt?.id === b.id ? "bg-blue-600 text-white" : "bg-gray-100"}`}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => { onClose(); resetBookingForm() }} className="flex-1 py-3 bg-gray-200 rounded-lg font-semibold">Cancel</button>
+              <button
+                onClick={() => { setBookingStep("time"); loadTimeSlots() }}
+                disabled={!selectedServiceForAppt}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold disabled:bg-gray-300"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Select Time */}
+        {bookingStep === "time" && (
+          <div>
+            <h3 className="font-semibold mb-4">Select Date & Time</h3>
+            <input
+              type="date"
+              value={appointmentDate}
+              onChange={e => { setAppointmentDate(e.target.value); setTimeout(loadTimeSlots, 100) }}
+              className="w-full p-3 border rounded-lg mb-4"
+            />
+            
+            <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
+              {timeSlots.map(slot => (
+                <button
+                  key={slot.time}
+                  onClick={() => setSelectedSlot(slot)}
+                  className={`p-3 rounded-lg text-center ${
+                    selectedSlot?.time === slot.time
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 hover:bg-gray-200"
+                  }`}
+                >
+                  {slot.time}
+                </button>
+              ))}
+            </div>
+            
+            {timeSlots.length === 0 && (
+              <p className="text-center text-gray-500 py-8">No available slots for this date</p>
+            )}
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setBookingStep("service")} className="flex-1 py-3 bg-gray-200 rounded-lg font-semibold">Back</button>
+              <button
+                onClick={() => setBookingStep("details")}
+                disabled={!selectedSlot}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold disabled:bg-gray-300"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Customer Details */}
+        {bookingStep === "details" && (
+          <div>
+            <h3 className="font-semibold mb-4">Customer Information</h3>
+            
+            <div className="bg-blue-50 rounded-lg p-4 mb-4">
+              <p className="font-semibold">{selectedServiceForAppt?.name}</p>
+              <p className="text-sm text-gray-600">
+                {new Date(selectedSlot?.datetime || "").toLocaleString()} 
+                {selectedBarberForAppt && ` with ${selectedBarberForAppt.name}`}
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Customer Name *"
+                value={apptCustomerName}
+                onChange={e => setApptCustomerName(e.target.value)}
+                className="w-full p-3 border rounded-lg"
+              />
+              <input
+                type="tel"
+                placeholder="Phone Number *"
+                value={apptCustomerPhone}
+                onChange={e => setApptCustomerPhone(e.target.value)}
+                className="w-full p-3 border rounded-lg"
+              />
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setBookingStep("time")} className="flex-1 py-3 bg-gray-200 rounded-lg font-semibold">Back</button>
+              <button
+                onClick={bookAppointment}
+                disabled={!apptCustomerName || !apptCustomerPhone}
+                className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold disabled:bg-gray-300"
+              >
+                Book Appointment
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Product Checkout Modal
+interface ProductCheckoutModalProps {
+  productCart: CartProduct[]
+  productSubtotal: number
+  productTax: number
+  productTotal: number
+  processProductSale: () => void
+  onClose: () => void
+}
+
+function ProductCheckoutModal({
+  productCart, productSubtotal, productTax, productTotal,
+  processProductSale, onClose
+}: ProductCheckoutModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+        <h2 className="text-2xl font-bold mb-6">🛍️ Product Sale</h2>
+        
+        <div className="space-y-3 mb-6 max-h-60 overflow-y-auto">
+          {productCart.map((cp, i) => (
+            <div key={i} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+              <div>
+                <div className="font-semibold">{cp.product.name}</div>
+                <div className="text-sm text-gray-500">${cp.product.price} × {cp.quantity}</div>
+              </div>
+              <span className="font-bold">${(cp.product.price * cp.quantity).toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+        
+        <div className="border-t pt-4 space-y-2">
+          <div className="flex justify-between">
+            <span>Subtotal</span>
+            <span>${productSubtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Tax</span>
+            <span>${productTax.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-xl font-bold">
+            <span>Total</span>
+            <span className="text-green-600">${productTotal.toFixed(2)}</span>
+          </div>
+        </div>
+        
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 py-3 bg-gray-200 rounded-lg font-bold">Cancel</button>
+          <button onClick={processProductSale} className="flex-1 py-3 bg-green-600 text-white rounded-lg font-bold">Complete Sale</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Queue View
+interface QueueViewProps {
+  queue: QueueEntry[]
+  queueStats: any
+  dailyReport: any
+  barbers: Barber[]
+  quickCheckInPhone: string
+  quickCheckInCustomer: Customer | null
+  handleQuickCheckIn: (phone: string) => void
+  addToQueueQuick: (customer: Customer) => Promise<void>
+  setQuickCheckInPhone: (v: string) => void
+  setQuickCheckInCustomer: (v: Customer | null) => void
+  setShowWalkInModal: (v: boolean) => void
+  callCustomer: (id: number) => void
+  removeFromQueue: (id: number) => void
+  setViewMode: (v: ViewMode) => void
+  setCustomerPhone: (v: string) => void
+  searchCustomers: (phone: string) => void
+}
+
+function QueueView({
+  queue, queueStats, dailyReport, quickCheckInPhone, quickCheckInCustomer,
+  handleQuickCheckIn, addToQueueQuick, setQuickCheckInPhone, setQuickCheckInCustomer,
+  setShowWalkInModal, callCustomer, removeFromQueue,
+  setViewMode, setCustomerPhone, searchCustomers
+}: QueueViewProps) {
+  return (
+    <div className="max-w-4xl mx-auto">
+      {/* Today's quick stats */}
+      {dailyReport && (
+        <div className="bg-gradient-to-r from-blue-600 to-slate-700 rounded-xl shadow-lg p-6 mb-6 text-white">
+          <h3 className="text-lg font-semibold mb-3 opacity-80">Today's Performance</h3>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold">${dailyReport.summary.total_revenue.toFixed(0)}</div>
+              <div className="text-sm opacity-70">Revenue</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold">{dailyReport.summary.num_customers}</div>
+              <div className="text-sm opacity-70">Customers</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold">${dailyReport.summary.total_tips.toFixed(0)}</div>
+              <div className="text-sm opacity-70">Tips</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold">${dailyReport.summary.average_ticket.toFixed(0)}</div>
+              <div className="text-sm opacity-70">Avg Ticket</div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Quick Check-in */}
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <h3 className="font-bold text-gray-700 mb-3">📱 Quick Check-in</h3>
+        <div className="flex gap-3">
+          <input
+            type="tel"
+            placeholder="Enter phone number..."
+            value={quickCheckInPhone}
+            onChange={e => handleQuickCheckIn(e.target.value)}
+            className="flex-1 p-3 border-2 rounded-lg text-lg"
+          />
+          {quickCheckInCustomer && (
+            <button
+              onClick={async () => {
+                await addToQueueQuick(quickCheckInCustomer)
+                setQuickCheckInPhone("")
+                setQuickCheckInCustomer(null)
+              }}
+              className="px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700"
+            >
+              ✓ Check In
+            </button>
+          )}
+        </div>
+        {quickCheckInCustomer && (
+          <div className="mt-3 p-3 bg-green-50 rounded-lg flex items-center justify-between">
+            <div>
+              <span className="font-bold text-green-800">{quickCheckInCustomer.name}</span>
+              <span className="text-green-600 ml-2">{quickCheckInCustomer.phone}</span>
+              {quickCheckInCustomer.preferred_cut && (
+                <span className="text-sm text-green-600 ml-2">• {quickCheckInCustomer.preferred_cut}</span>
+              )}
+            </div>
+            <span className="text-green-500">✓ Found</span>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">📋 Walk-in Queue</h2>
+          <button
+            onClick={() => setShowWalkInModal(true)}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
+          >
+            ➕ Add Walk-in
+          </button>
+        </div>
+        {queueStats && (
+          <div className="grid grid-cols-4 gap-4 mt-4">
+            <div className="bg-yellow-50 rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold text-yellow-600">{queueStats.waiting}</div>
+              <div className="text-sm text-gray-600">Waiting</div>
+            </div>
+            <div className="bg-blue-50 rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold text-blue-600">{queueStats.called}</div>
+              <div className="text-sm text-gray-600">Called</div>
+            </div>
+            <div className="bg-green-50 rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold text-green-600">{queueStats.in_service}</div>
+              <div className="text-sm text-gray-600">In Service</div>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold text-purple-600">{queueStats.estimated_wait_new} min</div>
+              <div className="text-sm text-gray-600">Est. Wait</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {queue.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center text-gray-500">
+          No customers in queue
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {queue.map((entry) => (
+            <div
+              key={entry.id}
+              className={`bg-white rounded-xl shadow-lg p-6 border-l-4 ${
+                entry.status === "called" ? "border-blue-500 bg-blue-50" : "border-gray-200"
+              }`}
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl font-bold text-gray-400">#{entry.position}</span>
+                    <span className="text-xl font-bold">{entry.customer_name}</span>
+                    {entry.status === "called" && (
+                      <span className="px-2 py-1 bg-blue-600 text-white rounded text-sm font-bold">
+                        CALLED
+                      </span>
+                    )}
+                  </div>
+                  {entry.customer_phone && (
+                    <p className="text-gray-500">{entry.customer_phone}</p>
+                  )}
+                  {entry.requested_barber_name && (
+                    <p className="text-sm text-blue-600">Requested: {entry.requested_barber_name}</p>
+                  )}
+                  {entry.service_notes && (
+                    <p className="text-sm text-gray-500 italic">{entry.service_notes}</p>
+                  )}
+                  <p className="text-sm text-gray-400 mt-2">
+                    Waiting: {entry.wait_time_minutes} min
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {entry.status === "waiting" && (
+                    <button
+                      onClick={() => callCustomer(entry.id)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+                    >
+                      📢 Call
+                    </button>
+                  )}
+                  {entry.status === "called" && (
+                    <button
+                      onClick={() => {
+                        // Start service - go to POS
+                        setViewMode("pos")
+                        // Pre-fill customer name if available
+                        if (entry.customer_phone) {
+                          setCustomerPhone(entry.customer_phone)
+                          searchCustomers(entry.customer_phone)
+                        }
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+                    >
+                      ✂️ Start Service
+                    </button>
+                  )}
+                  <button
+                    onClick={() => removeFromQueue(entry.id)}
+                    className="px-4 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Orders View
+interface OrdersViewProps {
+  orders: Order[]
+  orderStatusFilter: string
+  setOrderStatusFilter: (v: string) => void
+}
+
+function OrdersView({ orders, orderStatusFilter, setOrderStatusFilter }: OrdersViewProps) {
+  return (
+    <div className="max-w-6xl mx-auto">
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">📋 Orders</h2>
+          <div className="flex gap-2">
+            {["all", "waiting", "in_progress", "completed"].map(status => (
+              <button
+                key={status}
+                onClick={() => setOrderStatusFilter(status)}
+                className={`px-4 py-2 rounded-lg font-semibold ${
+                  orderStatusFilter === status
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 hover:bg-gray-200"
+                }`}
+              >
+                {status === "all" ? "All" : status.replace("_", " ")}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {orders.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center text-gray-500">
+          No orders found
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left">Order</th>
+                <th className="px-4 py-3 text-left">Customer</th>
+                <th className="px-4 py-3 text-left">Barber</th>
+                <th className="px-4 py-3 text-left">Services</th>
+                <th className="px-4 py-3 text-left">Total</th>
+                <th className="px-4 py-3 text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {orders.map(order => (
+                <tr key={order.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-bold">#{order.id}</td>
+                  <td className="px-4 py-3">{order.customer_name || "Walk-in"}</td>
+                  <td className="px-4 py-3">{order.barber_name || "-"}</td>
+                  <td className="px-4 py-3 text-sm">{order.services.map(s => s.service_name).join(", ")}</td>
+                  <td className="px-4 py-3 font-semibold">${order.total.toFixed(2)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded text-sm font-semibold ${
+                      order.status === "completed" ? "bg-green-100 text-green-800" :
+                      order.status === "in_progress" ? "bg-blue-100 text-blue-800" :
+                      "bg-yellow-100 text-yellow-800"
+                    }`}>
+                      {order.status.replace("_", " ").toUpperCase()}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Appointments View
+interface AppointmentsViewProps {
+  appointments: Appointment[]
+  appointmentDate: string
+  upcomingAppointments: any[]
+  setAppointmentDate: (v: string) => void
+  setShowAppointmentModal: (v: boolean) => void
+  updateAppointmentStatus: (id: number, endpoint: string) => void
+  cancelAppointment: (id: number) => void
+}
+
+function AppointmentsView({
+  appointments, appointmentDate, upcomingAppointments,
+  setAppointmentDate, setShowAppointmentModal,
+  updateAppointmentStatus, cancelAppointment
+}: AppointmentsViewProps) {
+  return (
+    <div className="max-w-6xl mx-auto">
+      {/* Upcoming Appointments Alert */}
+      {upcomingAppointments.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-lg p-4 mb-6 text-white">
+          <h3 className="font-bold mb-2">🔔 Coming Up Soon</h3>
+          <div className="flex gap-4 overflow-x-auto">
+            {upcomingAppointments.map((appt: any) => (
+              <div key={appt.id} className="bg-white/20 rounded-lg px-4 py-2 whitespace-nowrap">
+                <span className="font-bold">{appt.customer_name}</span>
+                <span className="mx-2">•</span>
+                <span>{appt.minutes_until} min</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">📅 Appointments</h2>
+          <div className="flex items-center gap-4">
+            <input
+              type="date"
+              value={appointmentDate}
+              onChange={e => setAppointmentDate(e.target.value)}
+              className="px-4 py-2 border-2 rounded-lg"
+            />
+            <button
+              onClick={() => setShowAppointmentModal(true)}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
+            >
+              ➕ Book New
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {appointments.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center text-gray-500">
+          No appointments for this date
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {appointments.map(appt => (
+            <div key={appt.id} className={`bg-white rounded-xl shadow-lg p-6 border-l-4 ${
+              appt.status === "completed" ? "border-green-500" :
+              appt.status === "in_progress" ? "border-blue-500" :
+              appt.status === "checked_in" ? "border-purple-500" :
+              appt.status === "confirmed" ? "border-teal-500" :
+              appt.status === "cancelled" ? "border-red-500" :
+              appt.status === "no_show" ? "border-gray-500" : "border-yellow-500"
+            }`}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl font-bold">
+                      {new Date(appt.scheduled_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span className="font-semibold">{appt.customer_name}</span>
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                      appt.status === "completed" ? "bg-green-100 text-green-800" :
+                      appt.status === "in_progress" ? "bg-blue-100 text-blue-800" :
+                      appt.status === "checked_in" ? "bg-purple-100 text-purple-800" :
+                      appt.status === "confirmed" ? "bg-teal-100 text-teal-800" :
+                      appt.status === "cancelled" ? "bg-red-100 text-red-800" :
+                      appt.status === "no_show" ? "bg-gray-100 text-gray-800" :
+                      "bg-yellow-100 text-yellow-800"
+                    }`}>
+                      {appt.status.replace("_", " ").toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-gray-600">{appt.service_name} ({appt.duration_minutes} min)</p>
+                  {appt.barber_name && <p className="text-sm text-blue-600">Barber: {appt.barber_name}</p>}
+                  <p className="text-sm text-gray-500">{appt.customer_phone}</p>
+                </div>
+                <div className="flex gap-2">
+                  {appt.status === "scheduled" && (
+                    <>
+                      <button onClick={() => updateAppointmentStatus(appt.id, "confirm")} className="px-3 py-2 bg-teal-100 text-teal-700 rounded-lg font-semibold hover:bg-teal-200">Confirm</button>
+                      <button onClick={() => updateAppointmentStatus(appt.id, "check-in")} className="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg font-semibold hover:bg-purple-200">Check In</button>
+                      <button onClick={() => cancelAppointment(appt.id)} className="px-3 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200">Cancel</button>
+                    </>
+                  )}
+                  {appt.status === "confirmed" && (
+                    <>
+                      <button onClick={() => updateAppointmentStatus(appt.id, "check-in")} className="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg font-semibold hover:bg-purple-200">Check In</button>
+                      <button onClick={() => updateAppointmentStatus(appt.id, "no-show")} className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200">No Show</button>
+                    </>
+                  )}
+                  {appt.status === "checked_in" && (
+                    <button onClick={() => updateAppointmentStatus(appt.id, "start")} className="px-3 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Start Service</button>
+                  )}
+                  {appt.status === "in_progress" && (
+                    <button onClick={() => updateAppointmentStatus(appt.id, "complete")} className="px-3 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">Complete</button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Shop View
+interface ShopViewProps {
+  products: Product[]
+  productCart: CartProduct[]
+  selectedProductCategory: string
+  setSelectedProductCategory: (v: string) => void
+  addToProductCart: (p: Product) => void
+  removeFromProductCart: (i: number) => void
+  productSubtotal: number
+  setShowProductCheckout: (v: boolean) => void
+}
+
+function ShopView({
+  products, productCart, selectedProductCategory,
+  setSelectedProductCategory, addToProductCart, removeFromProductCart,
+  productSubtotal, setShowProductCheckout
+}: ShopViewProps) {
+  const filteredProducts = products.filter(p => p.category === selectedProductCategory)
+  
+  return (
+    <div className="flex h-[calc(100vh-80px)]">
+      {/* Products Grid */}
+      <div className="flex-1 flex flex-col bg-gray-50">
+        <div className="flex gap-2 p-4 bg-white border-b overflow-x-auto">
+          {PRODUCT_CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedProductCategory(cat.id)}
+              className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap ${
+                selectedProductCategory === cat.id ? "bg-blue-600 text-white" : "bg-gray-100"
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+        
+        <div className="flex-1 overflow-auto p-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {filteredProducts.map(product => (
+              <button
+                key={product.id}
+                onClick={() => addToProductCart(product)}
+                disabled={product.stock === 0}
+                className={`bg-white rounded-xl shadow p-4 text-left hover:shadow-lg transition ${
+                  product.stock === 0 ? "opacity-50" : "border-2 border-transparent hover:border-blue-300"
+                }`}
+              >
+                <h3 className="font-bold text-gray-800">{product.name}</h3>
+                <p className="text-sm text-gray-500">Stock: {product.stock}</p>
+                <p className="text-xl font-bold text-green-600 mt-2">${product.price.toFixed(2)}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      
+      {/* Cart */}
+      <div className="w-80 bg-white border-l flex flex-col">
+        <div className="p-4 border-b">
+          <h2 className="text-xl font-bold">🛒 Cart</h2>
+        </div>
+        
+        <div className="flex-1 overflow-auto p-4">
+          {productCart.length === 0 ? (
+            <p className="text-center text-gray-400 py-8">Cart is empty</p>
+          ) : (
+            <div className="space-y-3">
+              {productCart.map((cp, i) => (
+                <div key={i} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                  <div>
+                    <div className="font-semibold">{cp.product.name}</div>
+                    <div className="text-sm text-gray-500">${cp.product.price} × {cp.quantity}</div>
+                  </div>
+                  <button onClick={() => removeFromProductCart(i)} className="text-red-500">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        <div className="p-4 border-t bg-gray-50">
+          <div className="flex justify-between text-xl font-bold mb-4">
+            <span>Total</span>
+            <span>${productSubtotal.toFixed(2)}</span>
+          </div>
+          <button
+            onClick={() => setShowProductCheckout(true)}
+            disabled={productCart.length === 0}
+            className="w-full py-4 bg-green-600 text-white rounded-xl font-bold disabled:bg-gray-300"
+          >
+            Checkout
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Reports View
+interface ReportsViewProps {
+  dailyReport: any
+  earningsReport: any
+  leaderboard: any
+  leaderboardPeriod: string
+  setLeaderboardPeriod: (v: string) => void
+  setLeaderboard: (v: any) => void
+}
+
+function ReportsView({
+  dailyReport, earningsReport, leaderboard, leaderboardPeriod,
+  setLeaderboardPeriod, setLeaderboard
+}: ReportsViewProps) {
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      {dailyReport && (
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-2xl font-bold mb-4">📊 Today's Summary</h2>
+          <div className="grid grid-cols-4 gap-4">
+            <div className="bg-green-50 rounded-lg p-4 text-center">
+              <div className="text-3xl font-bold text-green-600">
+                ${dailyReport.summary.total_revenue.toFixed(0)}
+              </div>
+              <div className="text-sm text-gray-600">Revenue</div>
+            </div>
+            <div className="bg-blue-50 rounded-lg p-4 text-center">
+              <div className="text-3xl font-bold text-blue-600">
+                {dailyReport.summary.num_customers}
+              </div>
+              <div className="text-sm text-gray-600">Customers</div>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-4 text-center">
+              <div className="text-3xl font-bold text-purple-600">
+                ${dailyReport.summary.total_tips.toFixed(0)}
+              </div>
+              <div className="text-sm text-gray-600">Tips</div>
+            </div>
+            <div className="bg-amber-50 rounded-lg p-4 text-center">
+              <div className="text-3xl font-bold text-amber-600">
+                ${dailyReport.summary.average_ticket.toFixed(0)}
+              </div>
+              <div className="text-sm text-gray-600">Avg Ticket</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {earningsReport && (
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-2xl font-bold mb-4">💰 Barber Earnings (This Month)</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left">Barber</th>
+                  <th className="px-4 py-3 text-left">Services</th>
+                  <th className="px-4 py-3 text-left">Revenue</th>
+                  <th className="px-4 py-3 text-left">Commission</th>
+                  <th className="px-4 py-3 text-left">Tips</th>
+                  <th className="px-4 py-3 text-left">Total Earnings</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {earningsReport.barbers.map((b: any) => (
+                  <tr key={b.barber_id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-semibold">{b.barber_name}</td>
+                    <td className="px-4 py-3">{b.total_services}</td>
+                    <td className="px-4 py-3">${b.total_revenue.toFixed(2)}</td>
+                    <td className="px-4 py-3">${b.commission_earned.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-green-600">${b.tips_earned.toFixed(2)}</td>
+                    <td className="px-4 py-3 font-bold text-blue-600">${b.total_earnings.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-gray-50 font-bold">
+                <tr>
+                  <td className="px-4 py-3">TOTAL</td>
+                  <td className="px-4 py-3">-</td>
+                  <td className="px-4 py-3">${earningsReport.totals.total_revenue.toFixed(2)}</td>
+                  <td className="px-4 py-3">${earningsReport.totals.total_commission.toFixed(2)}</td>
+                  <td className="px-4 py-3">${earningsReport.totals.total_tips.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-blue-600">${earningsReport.totals.total_earnings.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Leaderboard */}
+      {leaderboard && (
+        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl shadow-lg p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold">🏆 Leaderboard</h2>
+            <div className="flex gap-2">
+              {["today", "week", "month"].map(period => (
+                <button
+                  key={period}
+                  onClick={() => {
+                    setLeaderboardPeriod(period)
+                    fetch(`${API_BASE}/reports/leaderboard?period=${period}`)
+                      .then(r => r.json())
+                      .then(setLeaderboard)
+                  }}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    leaderboardPeriod === period
+                      ? "bg-amber-600 text-white"
+                      : "bg-white hover:bg-amber-100"
+                  }`}
+                >
+                  {period.charAt(0).toUpperCase() + period.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-3">
+            {leaderboard.leaderboard.map((entry: any) => (
+              <div
+                key={entry.barber_id}
+                className={`flex items-center justify-between p-4 rounded-xl ${
+                  entry.rank === 1 ? "bg-gradient-to-r from-yellow-200 to-amber-200" :
+                  entry.rank === 2 ? "bg-gradient-to-r from-gray-200 to-slate-200" :
+                  entry.rank === 3 ? "bg-gradient-to-r from-orange-200 to-amber-200" :
+                  "bg-white"
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  <span className="text-3xl">{entry.badge || `#${entry.rank}`}</span>
+                  <div>
+                    <div className="font-bold text-lg">{entry.barber_name}</div>
+                    <div className="text-sm text-gray-600">
+                      {entry.customers} customers • {entry.avg_tip_percent}% avg tip
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-green-600">${entry.revenue}</div>
+                  <div className="text-sm text-gray-500">+${entry.tips} tips</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// POS View
+interface POSViewProps {
+  services: ServiceType[]
+  barbers: Barber[]
+  orderServices: OrderService[]
+  selectedBarber: Barber | null
+  selectedCategory: string
+  customerPhone: string
+  customer: Customer | null
+  customers: Customer[]
+  subtotal: number
+  tax: number
+  setSelectedCategory: (v: string) => void
+  setSelectedBarber: (v: Barber | null) => void
+  setCustomerPhone: (v: string) => void
+  setCustomer: (v: Customer | null) => void
+  setCustomers: (v: Customer[]) => void
+  handlePhoneChange: (v: string) => void
+  addService: (s: ServiceType) => void
+  removeService: (i: number) => void
+  setOrderServices: (v: OrderService[]) => void
+  setShowNewCustomerModal: (v: boolean) => void
+  setNewCustomerPhone: (v: string) => void
+  setShowPaymentModal: (v: boolean) => void
+  fetchCustomerProfile: (id: number) => void
+}
+
+function POSView({
+  services, barbers, orderServices, selectedBarber, selectedCategory,
+  customerPhone, customer, customers, subtotal, tax,
+  setSelectedCategory, setSelectedBarber, setCustomerPhone, setCustomer, setCustomers,
+  handlePhoneChange, addService, removeService, setOrderServices,
+  setShowNewCustomerModal, setNewCustomerPhone, setShowPaymentModal, fetchCustomerProfile
+}: POSViewProps) {
+  const filteredServices = services.filter(s => s.category === selectedCategory)
+  
+  return (
+    <div className="flex h-screen">
+      {/* Left Panel - Services */}
+      <div className="flex-1 flex flex-col bg-gray-50">
+        {/* Categories */}
+        <div className="flex gap-2 p-4 bg-white border-b overflow-x-auto">
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition ${
+                selectedCategory === cat.id
+                  ? `bg-${cat.color}-600 text-white`
+                  : "bg-gray-100 hover:bg-gray-200"
+              }`}
+              style={{
+                backgroundColor: selectedCategory === cat.id ? 
+                  (cat.color === "blue" ? "#2563eb" : 
+                   cat.color === "amber" ? "#d97706" :
+                   cat.color === "green" ? "#16a34a" : "#9333ea") : undefined,
+                color: selectedCategory === cat.id ? "white" : undefined
+              }}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Services Grid */}
+        <div className="flex-1 overflow-auto p-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {filteredServices.map(service => (
+              <button
+                key={service.id}
+                onClick={() => addService(service)}
+                className="bg-white rounded-xl shadow p-4 text-left hover:shadow-lg transition border-2 border-transparent hover:border-blue-300"
+              >
+                <h3 className="font-bold text-gray-800">{service.name}</h3>
+                <p className="text-sm text-gray-500">{service.duration_minutes} min</p>
+                <p className="text-xl font-bold text-blue-600 mt-2">
+                  ${service.base_price.toFixed(2)}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Right Panel - Cart */}
+      <div className="w-96 bg-white border-l flex flex-col">
+        {/* Customer & Barber */}
+        <div className="p-4 border-b space-y-3">
+          {/* Customer search */}
+          <div>
+            <label className="text-sm font-semibold text-gray-600">Customer</label>
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <input
+                  type="tel"
+                  placeholder="Search by phone..."
+                  value={customerPhone}
+                  onChange={e => handlePhoneChange(e.target.value)}
+                  className="w-full p-2 border rounded-lg"
+                />
+                {customers.length > 0 && !customer && (
+                  <div className="absolute top-full left-0 right-0 bg-white border rounded-lg shadow-lg z-10 max-h-40 overflow-auto">
+                    {customers.map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => { setCustomer(c); setCustomerPhone(c.phone); setCustomers([]) }}
+                        className="w-full p-2 text-left hover:bg-gray-50"
+                      >
+                        {c.name} - {c.phone}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => { setNewCustomerPhone(customerPhone); setShowNewCustomerModal(true) }}
+                className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                ➕
+              </button>
+            </div>
+            {customer && (
+              <div className="mt-2 p-2 bg-blue-50 rounded-lg flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">{customer.name}</span>
+                  <span className="text-sm text-gray-500">{customer.phone}</span>
+                  <button
+                    onClick={() => fetchCustomerProfile(customer.id)}
+                    className="text-blue-600 hover:text-blue-800 text-sm underline"
+                  >
+                    View History
+                  </button>
+                </div>
+                <button onClick={() => { setCustomer(null); setCustomerPhone("") }} className="text-red-500">✕</button>
+              </div>
+            )}
+          </div>
+
+          {/* Barber selection */}
+          <div>
+            <label className="text-sm font-semibold text-gray-600">Barber</label>
+            <div className="flex gap-2 mt-1 overflow-x-auto pb-2">
+              {barbers.map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => setSelectedBarber(b)}
+                  className={`px-3 py-2 rounded-lg whitespace-nowrap font-semibold transition ${
+                    selectedBarber?.id === b.id
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 hover:bg-gray-200"
+                  }`}
+                >
+                  {b.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Cart Items */}
+        <div className="flex-1 overflow-auto p-4">
+          {orderServices.length === 0 ? (
+            <div className="text-center text-gray-400 py-8">
+              Tap services to add
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {orderServices.map((os, index) => (
+                <div key={index} className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="font-semibold">{os.service.name}</div>
+                      <div className="text-sm text-gray-500">
+                        ${os.service.base_price.toFixed(2)} × {os.quantity}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold">
+                        ${(os.service.base_price * os.quantity).toFixed(2)}
+                      </span>
+                      <button
+                        onClick={() => removeService(index)}
+                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Add notes (e.g., fade style, length)..."
+                    value={os.notes || ""}
+                    onChange={e => {
+                      const updated = [...orderServices]
+                      updated[index] = { ...os, notes: e.target.value }
+                      setOrderServices(updated)
+                    }}
+                    className="w-full mt-2 p-2 text-sm border rounded bg-white"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Totals & Checkout */}
+        <div className="p-4 border-t bg-gray-50">
+          <div className="space-y-2 mb-4">
+            <div className="flex justify-between text-gray-600">
+              <span>Subtotal</span>
+              <span>${subtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span>Tax (8.75%)</span>
+              <span>${tax.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-xl font-bold">
+              <span>Total</span>
+              <span>${(subtotal + tax).toFixed(2)}</span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowPaymentModal(true)}
+            disabled={orderServices.length === 0}
+            className="w-full py-4 bg-green-600 text-white rounded-xl font-bold text-lg hover:bg-green-700 disabled:bg-gray-300"
+          >
+            Checkout
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// =============================================================================
+// MAIN APP COMPONENT
+// =============================================================================
+
 function App() {
   // Core state
   const [viewMode, setViewMode] = useState<ViewMode>("pos")
@@ -182,12 +2006,12 @@ function App() {
   // Customer profile
   const [showCustomerProfile, setShowCustomerProfile] = useState(false)
   const [customerProfile, setCustomerProfile] = useState<any>(null)
-  const [loadingProfile, setLoadingProfile] = useState(false)
+  const [, setLoadingProfile] = useState(false)
 
   // Loyalty points
   const [loyaltyBalance, setLoyaltyBalance] = useState<any>(null)
-  const [redeemingPoints, setRedeemingPoints] = useState(false)
-  const [pointsToRedeem, setPointsToRedeem] = useState("")
+  const [, setRedeemingPoints] = useState(false)
+  const [, setPointsToRedeem] = useState("")
 
   // Cash drawer
   const [showCashDrawer, setShowCashDrawer] = useState(false)
@@ -435,7 +2259,8 @@ function App() {
     }
   }
 
-  const redeemLoyaltyPoints = async (customerId: number, points: number) => {
+  // Unused but kept for future use
+  const _redeemLoyaltyPoints = async (customerId: number, points: number) => {
     setRedeemingPoints(true)
     try {
       const res = await fetch(`${API_BASE}/loyalty/redeem`, {
@@ -455,6 +2280,7 @@ function App() {
     setRedeemingPoints(false)
     return 0
   }
+  void _redeemLoyaltyPoints // suppress unused warning
 
   const loadDrawerStatus = async () => {
     const data = await fetch(`${API_BASE}/cash-drawer/status`).then(r => r.json())
@@ -613,7 +2439,6 @@ function App() {
   )
   const tax = subtotal * 0.0875
   const tip = parseFloat(tipAmount) || 0
-  const total = subtotal + tax + tip
 
   const setTipByPercentage = (pct: number) => {
     setTipPercentage(pct)
@@ -786,7 +2611,10 @@ function App() {
     setTipPercentage(null)
   }
 
-  const filteredServices = services.filter(s => s.category === selectedCategory)
+  const updateAppointmentStatus = async (id: number, endpoint: string) => {
+    await fetch(`${API_BASE}/appointments/${id}/${endpoint}`, { method: "POST" })
+    loadAppointments()
+  }
 
   if (loading) return <div className="p-8 text-center text-xl">Loading...</div>
   if (error) return <div className="p-8 text-center text-red-500">Error: {error}</div>
@@ -860,1553 +2688,6 @@ function App() {
     )
   }
 
-  // Payment Modal
-  const PaymentModal = () => (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-lg w-full mx-4">
-        <h2 className="text-2xl font-bold mb-6 text-center">Payment</h2>
-
-        <div className="bg-gray-50 rounded-lg p-4 mb-6">
-          <div className="flex justify-between mb-2">
-            <span>Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between mb-2">
-            <span>Tax (8.75%)</span>
-            <span>${tax.toFixed(2)}</span>
-          </div>
-
-          <div className="border-t pt-3 mt-3">
-            <p className="text-sm font-semibold text-gray-700 mb-2">Add Tip</p>
-            <div className="grid grid-cols-4 gap-2 mb-2">
-              {[15, 18, 20, 25].map(pct => (
-                <button
-                  key={pct}
-                  onClick={() => setTipByPercentage(pct)}
-                  className={`py-2 rounded-lg text-sm font-semibold transition ${
-                    tipPercentage === pct
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-200 hover:bg-gray-300"
-                  }`}
-                >
-                  {pct}%
-                </button>
-              ))}
-            </div>
-            <input
-              type="number"
-              placeholder="Custom tip"
-              value={tipAmount}
-              onChange={e => { setTipAmount(e.target.value); setTipPercentage(null) }}
-              className="w-full p-2 border rounded-lg"
-            />
-          </div>
-
-          <div className="flex justify-between text-2xl font-bold pt-3 mt-3 border-t">
-            <span>Total</span>
-            <span className="text-green-600">${total.toFixed(2)}</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          {[
-            { id: "card", label: "💳 Card" },
-            { id: "cash", label: "💵 Cash" },
-            { id: "apple_pay", label: "🍎 Apple Pay" },
-          ].map(method => (
-            <button
-              key={method.id}
-              onClick={() => setPaymentMethod(method.id)}
-              className={`p-4 rounded-xl border-2 transition ${
-                paymentMethod === method.id
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-gray-200 hover:border-gray-300"
-              }`}
-            >
-              <div className="text-center font-semibold">{method.label}</div>
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowPaymentModal(false)}
-            className="flex-1 py-4 bg-gray-200 rounded-xl font-bold hover:bg-gray-300"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={processPayment}
-            disabled={processingPayment}
-            className="flex-1 py-4 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:bg-gray-300"
-          >
-            {processingPayment ? "Processing..." : "Complete"}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-
-  // New Customer Modal
-  const NewCustomerModal = () => (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
-        <h2 className="text-2xl font-bold mb-6 text-center">New Customer</h2>
-        <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="Name"
-            value={newCustomerName}
-            onChange={e => setNewCustomerName(e.target.value)}
-            className="w-full p-3 border-2 rounded-lg"
-          />
-          <input
-            type="tel"
-            placeholder="Phone"
-            value={newCustomerPhone}
-            onChange={e => setNewCustomerPhone(e.target.value)}
-            className="w-full p-3 border-2 rounded-lg"
-          />
-        </div>
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={() => setShowNewCustomerModal(false)}
-            className="flex-1 py-4 bg-gray-200 rounded-xl font-bold hover:bg-gray-300"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={createCustomer}
-            disabled={!newCustomerName || !newCustomerPhone}
-            className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-gray-300"
-          >
-            Add
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-
-  // Walk-in Modal
-  const WalkInModal = () => (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
-        <h2 className="text-2xl font-bold mb-6 text-center">Add to Queue</h2>
-        <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="Customer Name *"
-            value={walkInName}
-            onChange={e => setWalkInName(e.target.value)}
-            className="w-full p-3 border-2 rounded-lg"
-          />
-          <input
-            type="tel"
-            placeholder="Phone (optional)"
-            value={walkInPhone}
-            onChange={e => setWalkInPhone(e.target.value)}
-            className="w-full p-3 border-2 rounded-lg"
-          />
-          <select
-            value={walkInBarber || ""}
-            onChange={e => setWalkInBarber(e.target.value ? parseInt(e.target.value) : null)}
-            className="w-full p-3 border-2 rounded-lg"
-          >
-            <option value="">Any available barber</option>
-            {barbers.map(b => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
-          <input
-            type="text"
-            placeholder="Service notes (optional)"
-            value={walkInNotes}
-            onChange={e => setWalkInNotes(e.target.value)}
-            className="w-full p-3 border-2 rounded-lg"
-          />
-        </div>
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={() => setShowWalkInModal(false)}
-            className="flex-1 py-4 bg-gray-200 rounded-xl font-bold hover:bg-gray-300"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={addToQueue}
-            disabled={!walkInName}
-            className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:bg-gray-300"
-          >
-            Add to Queue
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-
-  // Queue View
-  const QueueView = () => (
-    <div className="max-w-4xl mx-auto">
-      {/* Today's quick stats */}
-      {dailyReport && (
-        <div className="bg-gradient-to-r from-blue-600 to-slate-700 rounded-xl shadow-lg p-6 mb-6 text-white">
-          <h3 className="text-lg font-semibold mb-3 opacity-80">Today's Performance</h3>
-          <div className="grid grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold">${dailyReport.summary.total_revenue.toFixed(0)}</div>
-              <div className="text-sm opacity-70">Revenue</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold">{dailyReport.summary.num_customers}</div>
-              <div className="text-sm opacity-70">Customers</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold">${dailyReport.summary.total_tips.toFixed(0)}</div>
-              <div className="text-sm opacity-70">Tips</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold">${dailyReport.summary.average_ticket.toFixed(0)}</div>
-              <div className="text-sm opacity-70">Avg Ticket</div>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Quick Check-in */}
-      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <h3 className="font-bold text-gray-700 mb-3">📱 Quick Check-in</h3>
-        <div className="flex gap-3">
-          <input
-            type="tel"
-            placeholder="Enter phone number..."
-            value={quickCheckInPhone}
-            onChange={e => handleQuickCheckIn(e.target.value)}
-            className="flex-1 p-3 border-2 rounded-lg text-lg"
-          />
-          {quickCheckInCustomer && (
-            <button
-              onClick={async () => {
-                await addToQueueQuick(quickCheckInCustomer)
-                setQuickCheckInPhone("")
-                setQuickCheckInCustomer(null)
-              }}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700"
-            >
-              ✓ Check In
-            </button>
-          )}
-        </div>
-        {quickCheckInCustomer && (
-          <div className="mt-3 p-3 bg-green-50 rounded-lg flex items-center justify-between">
-            <div>
-              <span className="font-bold text-green-800">{quickCheckInCustomer.name}</span>
-              <span className="text-green-600 ml-2">{quickCheckInCustomer.phone}</span>
-              {quickCheckInCustomer.preferred_cut && (
-                <span className="text-sm text-green-600 ml-2">• {quickCheckInCustomer.preferred_cut}</span>
-              )}
-            </div>
-            <span className="text-green-500">✓ Found</span>
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">📋 Walk-in Queue</h2>
-          <button
-            onClick={() => setShowWalkInModal(true)}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
-          >
-            ➕ Add Walk-in
-          </button>
-        </div>
-        {queueStats && (
-          <div className="grid grid-cols-4 gap-4 mt-4">
-            <div className="bg-yellow-50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-yellow-600">{queueStats.waiting}</div>
-              <div className="text-sm text-gray-600">Waiting</div>
-            </div>
-            <div className="bg-blue-50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-blue-600">{queueStats.called}</div>
-              <div className="text-sm text-gray-600">Called</div>
-            </div>
-            <div className="bg-green-50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-green-600">{queueStats.in_service}</div>
-              <div className="text-sm text-gray-600">In Service</div>
-            </div>
-            <div className="bg-purple-50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-purple-600">{queueStats.estimated_wait_new} min</div>
-              <div className="text-sm text-gray-600">Est. Wait</div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {queue.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-lg p-12 text-center text-gray-500">
-          No customers in queue
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {queue.map((entry, index) => (
-            <div
-              key={entry.id}
-              className={`bg-white rounded-xl shadow-lg p-6 border-l-4 ${
-                entry.status === "called" ? "border-blue-500 bg-blue-50" : "border-gray-200"
-              }`}
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl font-bold text-gray-400">#{entry.position}</span>
-                    <span className="text-xl font-bold">{entry.customer_name}</span>
-                    {entry.status === "called" && (
-                      <span className="px-2 py-1 bg-blue-600 text-white rounded text-sm font-bold">
-                        CALLED
-                      </span>
-                    )}
-                  </div>
-                  {entry.customer_phone && (
-                    <p className="text-gray-500">{entry.customer_phone}</p>
-                  )}
-                  {entry.requested_barber_name && (
-                    <p className="text-sm text-blue-600">Requested: {entry.requested_barber_name}</p>
-                  )}
-                  {entry.service_notes && (
-                    <p className="text-sm text-gray-500 italic">{entry.service_notes}</p>
-                  )}
-                  <p className="text-sm text-gray-400 mt-2">
-                    Waiting: {entry.wait_time_minutes} min
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  {entry.status === "waiting" && (
-                    <button
-                      onClick={() => callCustomer(entry.id)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
-                    >
-                      📢 Call
-                    </button>
-                  )}
-                  {entry.status === "called" && (
-                    <button
-                      onClick={() => {
-                        // Start service - go to POS
-                        setViewMode("pos")
-                        // Pre-fill customer name if available
-                        if (entry.customer_phone) {
-                          setCustomerPhone(entry.customer_phone)
-                          searchCustomers(entry.customer_phone)
-                        }
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
-                    >
-                      ✂️ Start Service
-                    </button>
-                  )}
-                  <button
-                    onClick={() => removeFromQueue(entry.id)}
-                    className="px-4 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-
-  // Orders View
-  const OrdersView = () => (
-    <div className="max-w-6xl mx-auto">
-      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">📋 Orders</h2>
-          <div className="flex gap-2">
-            {["all", "waiting", "in_progress", "completed"].map(status => (
-              <button
-                key={status}
-                onClick={() => setOrderStatusFilter(status)}
-                className={`px-4 py-2 rounded-lg font-semibold ${
-                  orderStatusFilter === status
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 hover:bg-gray-200"
-                }`}
-              >
-                {status === "all" ? "All" : status.replace("_", " ")}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {orders.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-lg p-12 text-center text-gray-500">
-          No orders found
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left">Order</th>
-                <th className="px-4 py-3 text-left">Customer</th>
-                <th className="px-4 py-3 text-left">Barber</th>
-                <th className="px-4 py-3 text-left">Services</th>
-                <th className="px-4 py-3 text-left">Total</th>
-                <th className="px-4 py-3 text-left">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {orders.map(order => (
-                <tr key={order.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-bold">#{order.id}</td>
-                  <td className="px-4 py-3">{order.customer_name || "Walk-in"}</td>
-                  <td className="px-4 py-3">{order.barber_name || "-"}</td>
-                  <td className="px-4 py-3 text-sm">{order.services.map(s => s.service_name).join(", ")}</td>
-                  <td className="px-4 py-3 font-semibold">${order.total.toFixed(2)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded text-sm font-semibold ${
-                      order.status === "completed" ? "bg-green-100 text-green-800" :
-                      order.status === "in_progress" ? "bg-blue-100 text-blue-800" :
-                      "bg-yellow-100 text-yellow-800"
-                    }`}>
-                      {order.status.replace("_", " ").toUpperCase()}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
-
-  // Feedback Modal
-  const FeedbackModal = () => (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
-      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full mx-4">
-        {feedbackSubmitted ? (
-          <div className="text-center py-8">
-            <div className="text-5xl mb-4">✅</div>
-            <h2 className="text-2xl font-bold text-green-600">Thank you!</h2>
-            <p className="text-gray-500 mt-2">Your feedback has been submitted.</p>
-          </div>
-        ) : (
-          <>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">📝 Send Feedback</h2>
-              <button onClick={() => setShowFeedbackModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-            </div>
-            
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={() => setFeedbackType("bug")}
-                className={`flex-1 py-3 rounded-lg font-semibold transition ${
-                  feedbackType === "bug" ? "bg-red-600 text-white" : "bg-gray-100 hover:bg-gray-200"
-                }`}
-              >
-                🐛 Bug Report
-              </button>
-              <button
-                onClick={() => setFeedbackType("feature")}
-                className={`flex-1 py-3 rounded-lg font-semibold transition ${
-                  feedbackType === "feature" ? "bg-blue-600 text-white" : "bg-gray-100 hover:bg-gray-200"
-                }`}
-              >
-                💡 Feature Request
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <input
-                type="text"
-                placeholder={feedbackType === "bug" ? "What went wrong?" : "What would you like?"}
-                value={feedbackTitle}
-                onChange={e => setFeedbackTitle(e.target.value)}
-                className="w-full p-3 border-2 rounded-lg focus:border-blue-500 focus:outline-none"
-              />
-              <textarea
-                placeholder="Describe in detail..."
-                value={feedbackDescription}
-                onChange={e => setFeedbackDescription(e.target.value)}
-                rows={4}
-                className="w-full p-3 border-2 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
-              />
-              <input
-                type="email"
-                placeholder="Email (optional - for follow-up)"
-                value={feedbackEmail}
-                onChange={e => setFeedbackEmail(e.target.value)}
-                className="w-full p-3 border-2 rounded-lg focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowFeedbackModal(false)}
-                className="flex-1 py-3 bg-gray-200 rounded-lg font-semibold hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitFeedback}
-                disabled={!feedbackTitle.trim() || !feedbackDescription.trim()}
-                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300"
-              >
-                Submit
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
-
-  // Cash Drawer Modal
-  const CashDrawerModal = () => (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">💰 Cash Drawer</h2>
-          <button onClick={() => setShowCashDrawer(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-        </div>
-        
-        {drawerStatus && (
-          <>
-            <div className={`p-4 rounded-lg mb-6 ${drawerStatus.is_open ? "bg-green-50" : "bg-gray-50"}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <span className={`w-3 h-3 rounded-full ${drawerStatus.is_open ? "bg-green-500" : "bg-gray-400"}`}></span>
-                <span className="font-semibold">{drawerStatus.is_open ? "Drawer Open" : "Drawer Closed"}</span>
-              </div>
-              
-              {drawerStatus.is_open && (
-                <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
-                  <div>
-                    <div className="text-gray-500">Starting</div>
-                    <div className="font-bold">${drawerStatus.starting_cash.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">Cash Sales</div>
-                    <div className="font-bold text-green-600">${drawerStatus.cash_sales.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">Added</div>
-                    <div className="font-bold text-blue-600">+${drawerStatus.cash_added.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">Removed</div>
-                    <div className="font-bold text-red-600">-${drawerStatus.cash_removed.toFixed(2)}</div>
-                  </div>
-                </div>
-              )}
-              
-              {drawerStatus.is_open && (
-                <div className="mt-4 pt-4 border-t">
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold">Current Cash</span>
-                    <span className="text-2xl font-bold text-green-600">${drawerStatus.current_cash.toFixed(2)}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {!drawerStatus.is_open ? (
-              <div>
-                <label className="text-sm font-semibold text-gray-600">Starting Cash</label>
-                <input
-                  type="number"
-                  placeholder="200.00"
-                  value={cashAmount}
-                  onChange={e => setCashAmount(e.target.value)}
-                  className="w-full p-3 border rounded-lg mb-4"
-                />
-                <button
-                  onClick={openDrawer}
-                  className="w-full py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700"
-                >
-                  Open Drawer
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    placeholder="Amount"
-                    value={cashAmount}
-                    onChange={e => setCashAmount(e.target.value)}
-                    className="flex-1 p-3 border rounded-lg"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Note (optional)"
-                    value={cashNote}
-                    onChange={e => setCashNote(e.target.value)}
-                    className="flex-1 p-3 border rounded-lg"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={addCash}
-                    disabled={!cashAmount}
-                    className="py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-300"
-                  >
-                    + Add Cash
-                  </button>
-                  <button
-                    onClick={removeCash}
-                    disabled={!cashAmount}
-                    className="py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 disabled:bg-gray-300"
-                  >
-                    - Remove Cash
-                  </button>
-                </div>
-                <button
-                  onClick={closeDrawer}
-                  className="w-full py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700"
-                >
-                  Close & Reconcile
-                </button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  )
-
-  // Customer Profile Modal
-  const CustomerProfileModal = () => {
-    if (!customerProfile) return null
-    const { customer: cust, stats, recent_visits } = customerProfile
-    
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-slate-700 p-6 rounded-t-2xl text-white">
-            <div className="flex justify-between items-start">
-              <div>
-                <h2 className="text-2xl font-bold">{cust.name}</h2>
-                <p className="text-blue-100">{cust.phone}</p>
-                {cust.email && <p className="text-blue-100 text-sm">{cust.email}</p>}
-              </div>
-              <button 
-                onClick={() => setShowCustomerProfile(false)}
-                className="text-white/80 hover:text-white text-2xl"
-              >
-                ✕
-              </button>
-            </div>
-            {cust.preferred_cut && (
-              <div className="mt-3 bg-white/20 rounded-lg px-3 py-2 text-sm">
-                ✂️ Preferred: {cust.preferred_cut}
-              </div>
-            )}
-          </div>
-          
-          {/* Stats */}
-          <div className="grid grid-cols-4 gap-4 p-6 bg-gray-50">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">{stats.total_visits}</div>
-              <div className="text-sm text-gray-500">Total Visits</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600">${stats.total_spent.toFixed(0)}</div>
-              <div className="text-sm text-gray-500">Total Spent</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600">${stats.average_spend.toFixed(0)}</div>
-              <div className="text-sm text-gray-500">Avg per Visit</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-amber-600">${stats.average_tip.toFixed(0)}</div>
-              <div className="text-sm text-gray-500">Avg Tip</div>
-            </div>
-          </div>
-
-          {/* Loyalty Points */}
-          {loyaltyBalance && (
-            <div className="p-6 border-b bg-gradient-to-r from-yellow-50 to-amber-50">
-              <h3 className="font-bold text-gray-700 mb-3">⭐ Loyalty Points</h3>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-4xl font-bold text-amber-600">{loyaltyBalance.current_points}</div>
-                  <div className="text-sm text-gray-500">Current Points</div>
-                  <div className="text-xs text-gray-400">Worth ${loyaltyBalance.redemption_value.toFixed(2)} in rewards</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xl font-semibold text-gray-600">{loyaltyBalance.lifetime_points}</div>
-                  <div className="text-sm text-gray-500">Lifetime Points</div>
-                </div>
-              </div>
-              {loyaltyBalance.current_points >= 100 && (
-                <div className="mt-4 p-3 bg-amber-100 rounded-lg text-amber-800 text-sm">
-                  🎉 Eligible for ${Math.floor(loyaltyBalance.current_points / 100)} discount!
-                </div>
-              )}
-            </div>
-          )}
-          
-          {/* Favorite Services */}
-          {stats.favorite_services.length > 0 && (
-            <div className="p-6 border-b">
-              <h3 className="font-bold text-gray-700 mb-3">💈 Favorite Services</h3>
-              <div className="flex flex-wrap gap-2">
-                {stats.favorite_services.map((s: any, i: number) => (
-                  <span key={i} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                    {s.name} ({s.count}x)
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {/* Notes */}
-          {cust.notes && (
-            <div className="p-6 border-b">
-              <h3 className="font-bold text-gray-700 mb-2">📝 Notes</h3>
-              <p className="text-gray-600 bg-yellow-50 p-3 rounded-lg">{cust.notes}</p>
-            </div>
-          )}
-          
-          {/* Recent Visits */}
-          <div className="p-6">
-            <h3 className="font-bold text-gray-700 mb-3">🕐 Recent Visits</h3>
-            {recent_visits.length === 0 ? (
-              <p className="text-gray-400 text-center py-4">No visits yet</p>
-            ) : (
-              <div className="space-y-3">
-                {recent_visits.slice(0, 5).map((visit: any) => (
-                  <div key={visit.order_id} className="bg-gray-50 rounded-lg p-3">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-sm text-gray-500">
-                        {new Date(visit.date).toLocaleDateString()} · Order #{visit.order_id}
-                      </span>
-                      <span className="font-bold text-green-600">${visit.total.toFixed(2)}</span>
-                    </div>
-                    <div className="text-sm">
-                      {visit.services.map((s: any, i: number) => (
-                        <span key={i} className="mr-2">{s.name}</span>
-                      ))}
-                    </div>
-                    {visit.tip > 0 && (
-                      <div className="text-xs text-gray-500 mt-1">Tip: ${visit.tip.toFixed(2)}</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          
-          {/* Footer */}
-          <div className="p-6 border-t bg-gray-50 rounded-b-2xl">
-            <p className="text-center text-sm text-gray-500">
-              Member since {new Date(cust.member_since).toLocaleDateString()}
-            </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Barber Panel
-  const BarberPanel = () => (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">👔 Barber Management</h2>
-          <button onClick={() => setShowBarberPanel(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-        </div>
-        
-        <div className="space-y-4">
-          {barbers.map(b => (
-            <div key={b.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
-              <div>
-                <div className="font-semibold text-lg">{b.name}</div>
-                <div className="flex items-center gap-2 text-sm">
-                  {b.is_clocked_in ? (
-                    <span className="text-green-600 flex items-center gap-1">
-                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                      Clocked In
-                    </span>
-                  ) : (
-                    <span className="text-gray-500">Not clocked in</span>
-                  )}
-                  {b.active_orders && b.active_orders > 0 && (
-                    <span className="text-blue-600">· {b.active_orders} active</span>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={() => b.is_clocked_in ? clockOut(b.id) : clockIn(b.id)}
-                className={`px-4 py-2 rounded-lg font-semibold ${
-                  b.is_clocked_in
-                    ? "bg-red-100 text-red-600 hover:bg-red-200"
-                    : "bg-green-100 text-green-600 hover:bg-green-200"
-                }`}
-              >
-                {b.is_clocked_in ? "Clock Out" : "Clock In"}
-              </button>
-            </div>
-          ))}
-        </div>
-        
-        <button
-          onClick={() => setShowBarberPanel(false)}
-          className="w-full mt-6 py-3 bg-gray-200 rounded-lg font-semibold hover:bg-gray-300"
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  )
-
-  // Appointment Booking Modal
-  const AppointmentModal = () => (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">📅 Book Appointment</h2>
-          <button onClick={() => { setShowAppointmentModal(false); resetBookingForm() }} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-        </div>
-
-        {/* Progress Steps */}
-        <div className="flex gap-4 mb-6">
-          {["service", "time", "details"].map((step, i) => (
-            <div key={step} className={`flex-1 h-2 rounded ${
-              bookingStep === step ? "bg-blue-600" :
-              (step === "service" || (step === "time" && bookingStep === "details")) ? "bg-blue-300" : "bg-gray-200"
-            }`} />
-          ))}
-        </div>
-
-        {/* Step 1: Select Service */}
-        {bookingStep === "service" && (
-          <div>
-            <h3 className="font-semibold mb-4">Select Service</h3>
-            <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
-              {services.map(svc => (
-                <button
-                  key={svc.id}
-                  onClick={() => setSelectedServiceForAppt(svc)}
-                  className={`p-4 rounded-lg border-2 text-left transition ${
-                    selectedServiceForAppt?.id === svc.id
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-blue-300"
-                  }`}
-                >
-                  <div className="font-semibold">{svc.name}</div>
-                  <div className="text-sm text-gray-500">{svc.duration_minutes} min · ${svc.base_price}</div>
-                </button>
-              ))}
-            </div>
-            
-            <h3 className="font-semibold mt-6 mb-4">Preferred Barber (Optional)</h3>
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() => setSelectedBarberForAppt(null)}
-                className={`px-4 py-2 rounded-lg ${!selectedBarberForAppt ? "bg-blue-600 text-white" : "bg-gray-100"}`}
-              >
-                Any
-              </button>
-              {barbers.map(b => (
-                <button
-                  key={b.id}
-                  onClick={() => setSelectedBarberForAppt(b)}
-                  className={`px-4 py-2 rounded-lg ${selectedBarberForAppt?.id === b.id ? "bg-blue-600 text-white" : "bg-gray-100"}`}
-                >
-                  {b.name}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => { setShowAppointmentModal(false); resetBookingForm() }} className="flex-1 py-3 bg-gray-200 rounded-lg font-semibold">Cancel</button>
-              <button
-                onClick={() => { setBookingStep("time"); loadTimeSlots() }}
-                disabled={!selectedServiceForAppt}
-                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold disabled:bg-gray-300"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Select Time */}
-        {bookingStep === "time" && (
-          <div>
-            <h3 className="font-semibold mb-4">Select Date & Time</h3>
-            <input
-              type="date"
-              value={appointmentDate}
-              onChange={e => { setAppointmentDate(e.target.value); setTimeout(loadTimeSlots, 100) }}
-              className="w-full p-3 border rounded-lg mb-4"
-            />
-            
-            <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
-              {timeSlots.map(slot => (
-                <button
-                  key={slot.time}
-                  onClick={() => setSelectedSlot(slot)}
-                  className={`p-3 rounded-lg text-center ${
-                    selectedSlot?.time === slot.time
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 hover:bg-gray-200"
-                  }`}
-                >
-                  {slot.time}
-                </button>
-              ))}
-            </div>
-            
-            {timeSlots.length === 0 && (
-              <p className="text-center text-gray-500 py-8">No available slots for this date</p>
-            )}
-
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setBookingStep("service")} className="flex-1 py-3 bg-gray-200 rounded-lg font-semibold">Back</button>
-              <button
-                onClick={() => setBookingStep("details")}
-                disabled={!selectedSlot}
-                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold disabled:bg-gray-300"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Customer Details */}
-        {bookingStep === "details" && (
-          <div>
-            <h3 className="font-semibold mb-4">Customer Information</h3>
-            
-            <div className="bg-blue-50 rounded-lg p-4 mb-4">
-              <p className="font-semibold">{selectedServiceForAppt?.name}</p>
-              <p className="text-sm text-gray-600">
-                {new Date(selectedSlot?.datetime || "").toLocaleString()} 
-                {selectedBarberForAppt && ` with ${selectedBarberForAppt.name}`}
-              </p>
-            </div>
-            
-            <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Customer Name *"
-                value={apptCustomerName}
-                onChange={e => setApptCustomerName(e.target.value)}
-                className="w-full p-3 border rounded-lg"
-              />
-              <input
-                type="tel"
-                placeholder="Phone Number *"
-                value={apptCustomerPhone}
-                onChange={e => setApptCustomerPhone(e.target.value)}
-                className="w-full p-3 border rounded-lg"
-              />
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setBookingStep("time")} className="flex-1 py-3 bg-gray-200 rounded-lg font-semibold">Back</button>
-              <button
-                onClick={bookAppointment}
-                disabled={!apptCustomerName || !apptCustomerPhone}
-                className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold disabled:bg-gray-300"
-              >
-                Book Appointment
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-
-  // Appointments View
-  const updateAppointmentStatus = async (id: number, endpoint: string) => {
-    await fetch(`${API_BASE}/appointments/${id}/${endpoint}`, { method: "POST" })
-    loadAppointments()
-  }
-
-  const AppointmentsView = () => (
-    <div className="max-w-6xl mx-auto">
-      {/* Upcoming Appointments Alert */}
-      {upcomingAppointments.length > 0 && (
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-lg p-4 mb-6 text-white">
-          <h3 className="font-bold mb-2">🔔 Coming Up Soon</h3>
-          <div className="flex gap-4 overflow-x-auto">
-            {upcomingAppointments.map((appt: any) => (
-              <div key={appt.id} className="bg-white/20 rounded-lg px-4 py-2 whitespace-nowrap">
-                <span className="font-bold">{appt.customer_name}</span>
-                <span className="mx-2">•</span>
-                <span>{appt.minutes_until} min</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">📅 Appointments</h2>
-          <div className="flex items-center gap-4">
-            <input
-              type="date"
-              value={appointmentDate}
-              onChange={e => setAppointmentDate(e.target.value)}
-              className="px-4 py-2 border-2 rounded-lg"
-            />
-            <button
-              onClick={() => setShowAppointmentModal(true)}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
-            >
-              ➕ Book New
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {appointments.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-lg p-12 text-center text-gray-500">
-          No appointments for this date
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {appointments.map(appt => (
-            <div key={appt.id} className={`bg-white rounded-xl shadow-lg p-6 border-l-4 ${
-              appt.status === "completed" ? "border-green-500" :
-              appt.status === "in_progress" ? "border-blue-500" :
-              appt.status === "checked_in" ? "border-purple-500" :
-              appt.status === "confirmed" ? "border-teal-500" :
-              appt.status === "cancelled" ? "border-red-500" :
-              appt.status === "no_show" ? "border-gray-500" : "border-yellow-500"
-            }`}>
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl font-bold">
-                      {new Date(appt.scheduled_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <span className="font-semibold">{appt.customer_name}</span>
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${
-                      appt.status === "completed" ? "bg-green-100 text-green-800" :
-                      appt.status === "in_progress" ? "bg-blue-100 text-blue-800" :
-                      appt.status === "checked_in" ? "bg-purple-100 text-purple-800" :
-                      appt.status === "confirmed" ? "bg-teal-100 text-teal-800" :
-                      appt.status === "cancelled" ? "bg-red-100 text-red-800" :
-                      appt.status === "no_show" ? "bg-gray-100 text-gray-800" :
-                      "bg-yellow-100 text-yellow-800"
-                    }`}>
-                      {appt.status.replace("_", " ").toUpperCase()}
-                    </span>
-                  </div>
-                  <p className="text-gray-600">{appt.service_name} ({appt.duration_minutes} min)</p>
-                  {appt.barber_name && <p className="text-sm text-blue-600">Barber: {appt.barber_name}</p>}
-                  <p className="text-sm text-gray-500">{appt.customer_phone}</p>
-                </div>
-                <div className="flex gap-2">
-                  {appt.status === "scheduled" && (
-                    <>
-                      <button onClick={() => updateAppointmentStatus(appt.id, "confirm")} className="px-3 py-2 bg-teal-100 text-teal-700 rounded-lg font-semibold hover:bg-teal-200">Confirm</button>
-                      <button onClick={() => updateAppointmentStatus(appt.id, "check-in")} className="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg font-semibold hover:bg-purple-200">Check In</button>
-                      <button onClick={() => cancelAppointment(appt.id)} className="px-3 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200">Cancel</button>
-                    </>
-                  )}
-                  {appt.status === "confirmed" && (
-                    <>
-                      <button onClick={() => updateAppointmentStatus(appt.id, "check-in")} className="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg font-semibold hover:bg-purple-200">Check In</button>
-                      <button onClick={() => updateAppointmentStatus(appt.id, "no-show")} className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200">No Show</button>
-                    </>
-                  )}
-                  {appt.status === "checked_in" && (
-                    <button onClick={() => updateAppointmentStatus(appt.id, "start")} className="px-3 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Start Service</button>
-                  )}
-                  {appt.status === "in_progress" && (
-                    <button onClick={() => updateAppointmentStatus(appt.id, "complete")} className="px-3 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">Complete</button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-
-  // Product Checkout Modal
-  const ProductCheckoutModal = () => (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
-        <h2 className="text-2xl font-bold mb-6">🛍️ Product Sale</h2>
-        
-        <div className="space-y-3 mb-6 max-h-60 overflow-y-auto">
-          {productCart.map((cp, i) => (
-            <div key={i} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-              <div>
-                <div className="font-semibold">{cp.product.name}</div>
-                <div className="text-sm text-gray-500">${cp.product.price} × {cp.quantity}</div>
-              </div>
-              <span className="font-bold">${(cp.product.price * cp.quantity).toFixed(2)}</span>
-            </div>
-          ))}
-        </div>
-        
-        <div className="border-t pt-4 space-y-2">
-          <div className="flex justify-between">
-            <span>Subtotal</span>
-            <span>${productSubtotal.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Tax</span>
-            <span>${productTax.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-xl font-bold">
-            <span>Total</span>
-            <span className="text-green-600">${productTotal.toFixed(2)}</span>
-          </div>
-        </div>
-        
-        <div className="flex gap-3 mt-6">
-          <button onClick={() => setShowProductCheckout(false)} className="flex-1 py-3 bg-gray-200 rounded-lg font-bold">Cancel</button>
-          <button onClick={processProductSale} className="flex-1 py-3 bg-green-600 text-white rounded-lg font-bold">Complete Sale</button>
-        </div>
-      </div>
-    </div>
-  )
-
-  // Shop View
-  const ShopView = () => {
-    const PRODUCT_CATEGORIES = [
-      { id: "styling", label: "💇 Styling" },
-      { id: "beard", label: "🧔 Beard" },
-      { id: "haircare", label: "🧴 Hair Care" },
-      { id: "shaving", label: "🪒 Shaving" },
-      { id: "tools", label: "✂️ Tools" },
-    ]
-    
-    const filteredProducts = products.filter(p => p.category === selectedProductCategory)
-    
-    return (
-      <div className="flex h-[calc(100vh-80px)]">
-        {/* Products Grid */}
-        <div className="flex-1 flex flex-col bg-gray-50">
-          <div className="flex gap-2 p-4 bg-white border-b overflow-x-auto">
-            {PRODUCT_CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedProductCategory(cat.id)}
-                className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap ${
-                  selectedProductCategory === cat.id ? "bg-blue-600 text-white" : "bg-gray-100"
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-          
-          <div className="flex-1 overflow-auto p-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {filteredProducts.map(product => (
-                <button
-                  key={product.id}
-                  onClick={() => addToProductCart(product)}
-                  disabled={product.stock === 0}
-                  className={`bg-white rounded-xl shadow p-4 text-left hover:shadow-lg transition ${
-                    product.stock === 0 ? "opacity-50" : "border-2 border-transparent hover:border-blue-300"
-                  }`}
-                >
-                  <h3 className="font-bold text-gray-800">{product.name}</h3>
-                  <p className="text-sm text-gray-500">Stock: {product.stock}</p>
-                  <p className="text-xl font-bold text-green-600 mt-2">${product.price.toFixed(2)}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        
-        {/* Cart */}
-        <div className="w-80 bg-white border-l flex flex-col">
-          <div className="p-4 border-b">
-            <h2 className="text-xl font-bold">🛒 Cart</h2>
-          </div>
-          
-          <div className="flex-1 overflow-auto p-4">
-            {productCart.length === 0 ? (
-              <p className="text-center text-gray-400 py-8">Cart is empty</p>
-            ) : (
-              <div className="space-y-3">
-                {productCart.map((cp, i) => (
-                  <div key={i} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                    <div>
-                      <div className="font-semibold">{cp.product.name}</div>
-                      <div className="text-sm text-gray-500">${cp.product.price} × {cp.quantity}</div>
-                    </div>
-                    <button onClick={() => removeFromProductCart(i)} className="text-red-500">✕</button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          
-          <div className="p-4 border-t bg-gray-50">
-            <div className="flex justify-between text-xl font-bold mb-4">
-              <span>Total</span>
-              <span>${productSubtotal.toFixed(2)}</span>
-            </div>
-            <button
-              onClick={() => setShowProductCheckout(true)}
-              disabled={productCart.length === 0}
-              className="w-full py-4 bg-green-600 text-white rounded-xl font-bold disabled:bg-gray-300"
-            >
-              Checkout
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Reports View
-  const ReportsView = () => (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {dailyReport && (
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-2xl font-bold mb-4">📊 Today's Summary</h2>
-          <div className="grid grid-cols-4 gap-4">
-            <div className="bg-green-50 rounded-lg p-4 text-center">
-              <div className="text-3xl font-bold text-green-600">
-                ${dailyReport.summary.total_revenue.toFixed(0)}
-              </div>
-              <div className="text-sm text-gray-600">Revenue</div>
-            </div>
-            <div className="bg-blue-50 rounded-lg p-4 text-center">
-              <div className="text-3xl font-bold text-blue-600">
-                {dailyReport.summary.num_customers}
-              </div>
-              <div className="text-sm text-gray-600">Customers</div>
-            </div>
-            <div className="bg-purple-50 rounded-lg p-4 text-center">
-              <div className="text-3xl font-bold text-purple-600">
-                ${dailyReport.summary.total_tips.toFixed(0)}
-              </div>
-              <div className="text-sm text-gray-600">Tips</div>
-            </div>
-            <div className="bg-amber-50 rounded-lg p-4 text-center">
-              <div className="text-3xl font-bold text-amber-600">
-                ${dailyReport.summary.average_ticket.toFixed(0)}
-              </div>
-              <div className="text-sm text-gray-600">Avg Ticket</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {earningsReport && (
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-2xl font-bold mb-4">💰 Barber Earnings (This Month)</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left">Barber</th>
-                  <th className="px-4 py-3 text-left">Services</th>
-                  <th className="px-4 py-3 text-left">Revenue</th>
-                  <th className="px-4 py-3 text-left">Commission</th>
-                  <th className="px-4 py-3 text-left">Tips</th>
-                  <th className="px-4 py-3 text-left">Total Earnings</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {earningsReport.barbers.map((b: any) => (
-                  <tr key={b.barber_id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-semibold">{b.barber_name}</td>
-                    <td className="px-4 py-3">{b.total_services}</td>
-                    <td className="px-4 py-3">${b.total_revenue.toFixed(2)}</td>
-                    <td className="px-4 py-3">${b.commission_earned.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-green-600">${b.tips_earned.toFixed(2)}</td>
-                    <td className="px-4 py-3 font-bold text-blue-600">${b.total_earnings.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="bg-gray-50 font-bold">
-                <tr>
-                  <td className="px-4 py-3">TOTAL</td>
-                  <td className="px-4 py-3">-</td>
-                  <td className="px-4 py-3">${earningsReport.totals.total_revenue.toFixed(2)}</td>
-                  <td className="px-4 py-3">${earningsReport.totals.total_commission.toFixed(2)}</td>
-                  <td className="px-4 py-3">${earningsReport.totals.total_tips.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-blue-600">${earningsReport.totals.total_earnings.toFixed(2)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Leaderboard */}
-      {leaderboard && (
-        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl shadow-lg p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">🏆 Leaderboard</h2>
-            <div className="flex gap-2">
-              {["today", "week", "month"].map(period => (
-                <button
-                  key={period}
-                  onClick={() => {
-                    setLeaderboardPeriod(period)
-                    fetch(`${API_BASE}/reports/leaderboard?period=${period}`)
-                      .then(r => r.json())
-                      .then(setLeaderboard)
-                  }}
-                  className={`px-4 py-2 rounded-lg font-semibold transition ${
-                    leaderboardPeriod === period
-                      ? "bg-amber-600 text-white"
-                      : "bg-white hover:bg-amber-100"
-                  }`}
-                >
-                  {period.charAt(0).toUpperCase() + period.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-3">
-            {leaderboard.leaderboard.map((entry: any) => (
-              <div
-                key={entry.barber_id}
-                className={`flex items-center justify-between p-4 rounded-xl ${
-                  entry.rank === 1 ? "bg-gradient-to-r from-yellow-200 to-amber-200" :
-                  entry.rank === 2 ? "bg-gradient-to-r from-gray-200 to-slate-200" :
-                  entry.rank === 3 ? "bg-gradient-to-r from-orange-200 to-amber-200" :
-                  "bg-white"
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <span className="text-3xl">{entry.badge || `#${entry.rank}`}</span>
-                  <div>
-                    <div className="font-bold text-lg">{entry.barber_name}</div>
-                    <div className="text-sm text-gray-600">
-                      {entry.customers} customers • {entry.avg_tip_percent}% avg tip
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-green-600">${entry.revenue}</div>
-                  <div className="text-sm text-gray-500">+${entry.tips} tips</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-
-  // Main POS View
-  const POSView = () => (
-    <div className="flex h-screen">
-      {/* Left Panel - Services */}
-      <div className="flex-1 flex flex-col bg-gray-50">
-        {/* Categories */}
-        <div className="flex gap-2 p-4 bg-white border-b overflow-x-auto">
-          {CATEGORIES.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition ${
-                selectedCategory === cat.id
-                  ? `bg-${cat.color}-600 text-white`
-                  : "bg-gray-100 hover:bg-gray-200"
-              }`}
-              style={{
-                backgroundColor: selectedCategory === cat.id ? 
-                  (cat.color === "blue" ? "#2563eb" : 
-                   cat.color === "amber" ? "#d97706" :
-                   cat.color === "green" ? "#16a34a" : "#9333ea") : undefined,
-                color: selectedCategory === cat.id ? "white" : undefined
-              }}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Services Grid */}
-        <div className="flex-1 overflow-auto p-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {filteredServices.map(service => (
-              <button
-                key={service.id}
-                onClick={() => addService(service)}
-                className="bg-white rounded-xl shadow p-4 text-left hover:shadow-lg transition border-2 border-transparent hover:border-blue-300"
-              >
-                <h3 className="font-bold text-gray-800">{service.name}</h3>
-                <p className="text-sm text-gray-500">{service.duration_minutes} min</p>
-                <p className="text-xl font-bold text-blue-600 mt-2">
-                  ${service.base_price.toFixed(2)}
-                </p>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Right Panel - Cart */}
-      <div className="w-96 bg-white border-l flex flex-col">
-        {/* Customer & Barber */}
-        <div className="p-4 border-b space-y-3">
-          {/* Customer search */}
-          <div>
-            <label className="text-sm font-semibold text-gray-600">Customer</label>
-            <div className="flex gap-2">
-              <div className="flex-1 relative">
-                <input
-                  type="tel"
-                  placeholder="Search by phone..."
-                  value={customerPhone}
-                  onChange={e => handlePhoneChange(e.target.value)}
-                  className="w-full p-2 border rounded-lg"
-                />
-                {customers.length > 0 && !customer && (
-                  <div className="absolute top-full left-0 right-0 bg-white border rounded-lg shadow-lg z-10 max-h-40 overflow-auto">
-                    {customers.map(c => (
-                      <button
-                        key={c.id}
-                        onClick={() => { setCustomer(c); setCustomerPhone(c.phone); setCustomers([]) }}
-                        className="w-full p-2 text-left hover:bg-gray-50"
-                      >
-                        {c.name} - {c.phone}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => { setNewCustomerPhone(customerPhone); setShowNewCustomerModal(true) }}
-                className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"
-              >
-                ➕
-              </button>
-            </div>
-            {customer && (
-              <div className="mt-2 p-2 bg-blue-50 rounded-lg flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{customer.name}</span>
-                  <span className="text-sm text-gray-500">{customer.phone}</span>
-                  <button
-                    onClick={() => fetchCustomerProfile(customer.id)}
-                    className="text-blue-600 hover:text-blue-800 text-sm underline"
-                  >
-                    View History
-                  </button>
-                </div>
-                <button onClick={() => { setCustomer(null); setCustomerPhone("") }} className="text-red-500">✕</button>
-              </div>
-            )}
-          </div>
-
-          {/* Barber selection */}
-          <div>
-            <label className="text-sm font-semibold text-gray-600">Barber</label>
-            <div className="flex gap-2 mt-1 overflow-x-auto pb-2">
-              {barbers.map(b => (
-                <button
-                  key={b.id}
-                  onClick={() => setSelectedBarber(b)}
-                  className={`px-3 py-2 rounded-lg whitespace-nowrap font-semibold transition ${
-                    selectedBarber?.id === b.id
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 hover:bg-gray-200"
-                  }`}
-                >
-                  {b.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Cart Items */}
-        <div className="flex-1 overflow-auto p-4">
-          {orderServices.length === 0 ? (
-            <div className="text-center text-gray-400 py-8">
-              Tap services to add
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {orderServices.map((os, index) => (
-                <div key={index} className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="font-semibold">{os.service.name}</div>
-                      <div className="text-sm text-gray-500">
-                        ${os.service.base_price.toFixed(2)} × {os.quantity}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold">
-                        ${(os.service.base_price * os.quantity).toFixed(2)}
-                      </span>
-                      <button
-                        onClick={() => removeService(index)}
-                        className="p-1 text-red-500 hover:bg-red-50 rounded"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Add notes (e.g., fade style, length)..."
-                    value={os.notes || ""}
-                    onChange={e => {
-                      const updated = [...orderServices]
-                      updated[index] = { ...os, notes: e.target.value }
-                      setOrderServices(updated)
-                    }}
-                    className="w-full mt-2 p-2 text-sm border rounded bg-white"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Totals & Checkout */}
-        <div className="p-4 border-t bg-gray-50">
-          <div className="space-y-2 mb-4">
-            <div className="flex justify-between text-gray-600">
-              <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-gray-600">
-              <span>Tax (8.75%)</span>
-              <span>${tax.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-xl font-bold">
-              <span>Total</span>
-              <span>${(subtotal + tax).toFixed(2)}</span>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setShowPaymentModal(true)}
-            disabled={orderServices.length === 0}
-            className="w-full py-4 bg-green-600 text-white rounded-xl font-bold text-lg hover:bg-green-700 disabled:bg-gray-300"
-          >
-            Checkout
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Navigation */}
@@ -2461,12 +2742,93 @@ function App() {
 
       {/* Main Content */}
       <main className={viewMode === "pos" ? "" : "p-6"}>
-        {viewMode === "pos" && <POSView />}
-        {viewMode === "queue" && <QueueView />}
-        {viewMode === "appointments" && <AppointmentsView />}
-        {viewMode === "orders" && <OrdersView />}
-        {viewMode === "shop" && <ShopView />}
-        {viewMode === "reports" && <ReportsView />}
+        {viewMode === "pos" && (
+          <POSView
+            services={services}
+            barbers={barbers}
+            orderServices={orderServices}
+            selectedBarber={selectedBarber}
+            selectedCategory={selectedCategory}
+            customerPhone={customerPhone}
+            customer={customer}
+            customers={customers}
+            subtotal={subtotal}
+            tax={tax}
+            setSelectedCategory={setSelectedCategory}
+            setSelectedBarber={setSelectedBarber}
+            setCustomerPhone={setCustomerPhone}
+            setCustomer={setCustomer}
+            setCustomers={setCustomers}
+            handlePhoneChange={handlePhoneChange}
+            addService={addService}
+            removeService={removeService}
+            setOrderServices={setOrderServices}
+            setShowNewCustomerModal={setShowNewCustomerModal}
+            setNewCustomerPhone={setNewCustomerPhone}
+            setShowPaymentModal={setShowPaymentModal}
+            fetchCustomerProfile={fetchCustomerProfile}
+          />
+        )}
+        {viewMode === "queue" && (
+          <QueueView
+            queue={queue}
+            queueStats={queueStats}
+            dailyReport={dailyReport}
+            barbers={barbers}
+            quickCheckInPhone={quickCheckInPhone}
+            quickCheckInCustomer={quickCheckInCustomer}
+            handleQuickCheckIn={handleQuickCheckIn}
+            addToQueueQuick={addToQueueQuick}
+            setQuickCheckInPhone={setQuickCheckInPhone}
+            setQuickCheckInCustomer={setQuickCheckInCustomer}
+            setShowWalkInModal={setShowWalkInModal}
+            callCustomer={callCustomer}
+            removeFromQueue={removeFromQueue}
+            setViewMode={setViewMode}
+            setCustomerPhone={setCustomerPhone}
+            searchCustomers={searchCustomers}
+          />
+        )}
+        {viewMode === "appointments" && (
+          <AppointmentsView
+            appointments={appointments}
+            appointmentDate={appointmentDate}
+            upcomingAppointments={upcomingAppointments}
+            setAppointmentDate={setAppointmentDate}
+            setShowAppointmentModal={setShowAppointmentModal}
+            updateAppointmentStatus={updateAppointmentStatus}
+            cancelAppointment={cancelAppointment}
+          />
+        )}
+        {viewMode === "orders" && (
+          <OrdersView
+            orders={orders}
+            orderStatusFilter={orderStatusFilter}
+            setOrderStatusFilter={setOrderStatusFilter}
+          />
+        )}
+        {viewMode === "shop" && (
+          <ShopView
+            products={products}
+            productCart={productCart}
+            selectedProductCategory={selectedProductCategory}
+            setSelectedProductCategory={setSelectedProductCategory}
+            addToProductCart={addToProductCart}
+            removeFromProductCart={removeFromProductCart}
+            productSubtotal={productSubtotal}
+            setShowProductCheckout={setShowProductCheckout}
+          />
+        )}
+        {viewMode === "reports" && (
+          <ReportsView
+            dailyReport={dailyReport}
+            earningsReport={earningsReport}
+            leaderboard={leaderboard}
+            leaderboardPeriod={leaderboardPeriod}
+            setLeaderboardPeriod={setLeaderboardPeriod}
+            setLeaderboard={setLeaderboard}
+          />
+        )}
       </main>
 
       {/* Floating Feedback Button */}
@@ -2478,16 +2840,127 @@ function App() {
         💬
       </button>
 
-      {/* Modals */}
-      {showPaymentModal && <PaymentModal />}
-      {showNewCustomerModal && <NewCustomerModal />}
-      {showWalkInModal && <WalkInModal />}
-      {showAppointmentModal && <AppointmentModal />}
-      {showBarberPanel && <BarberPanel />}
-      {showCustomerProfile && <CustomerProfileModal />}
-      {showCashDrawer && <CashDrawerModal />}
-      {showProductCheckout && <ProductCheckoutModal />}
-      {showFeedbackModal && <FeedbackModal />}
+      {/* Modals - All standalone components now */}
+      {showPaymentModal && (
+        <PaymentModal
+          subtotal={subtotal}
+          tax={tax}
+          tipAmount={tipAmount}
+          tipPercentage={tipPercentage}
+          paymentMethod={paymentMethod}
+          processingPayment={processingPayment}
+          setTipAmount={setTipAmount}
+          setTipPercentage={setTipPercentage}
+          setTipByPercentage={setTipByPercentage}
+          setPaymentMethod={setPaymentMethod}
+          processPayment={processPayment}
+          onClose={() => setShowPaymentModal(false)}
+        />
+      )}
+      {showNewCustomerModal && (
+        <NewCustomerModal
+          newCustomerName={newCustomerName}
+          newCustomerPhone={newCustomerPhone}
+          setNewCustomerName={setNewCustomerName}
+          setNewCustomerPhone={setNewCustomerPhone}
+          createCustomer={createCustomer}
+          onClose={() => setShowNewCustomerModal(false)}
+        />
+      )}
+      {showWalkInModal && (
+        <WalkInModal
+          walkInName={walkInName}
+          walkInPhone={walkInPhone}
+          walkInBarber={walkInBarber}
+          walkInNotes={walkInNotes}
+          barbers={barbers}
+          setWalkInName={setWalkInName}
+          setWalkInPhone={setWalkInPhone}
+          setWalkInBarber={setWalkInBarber}
+          setWalkInNotes={setWalkInNotes}
+          addToQueue={addToQueue}
+          onClose={() => setShowWalkInModal(false)}
+        />
+      )}
+      {showAppointmentModal && (
+        <AppointmentModal
+          services={services}
+          barbers={barbers}
+          appointmentDate={appointmentDate}
+          timeSlots={timeSlots}
+          selectedSlot={selectedSlot}
+          selectedServiceForAppt={selectedServiceForAppt}
+          selectedBarberForAppt={selectedBarberForAppt}
+          apptCustomerName={apptCustomerName}
+          apptCustomerPhone={apptCustomerPhone}
+          bookingStep={bookingStep}
+          setAppointmentDate={setAppointmentDate}
+          setSelectedSlot={setSelectedSlot}
+          setSelectedServiceForAppt={setSelectedServiceForAppt}
+          setSelectedBarberForAppt={setSelectedBarberForAppt}
+          setApptCustomerName={setApptCustomerName}
+          setApptCustomerPhone={setApptCustomerPhone}
+          setBookingStep={setBookingStep}
+          loadTimeSlots={loadTimeSlots}
+          bookAppointment={bookAppointment}
+          resetBookingForm={resetBookingForm}
+          onClose={() => setShowAppointmentModal(false)}
+        />
+      )}
+      {showBarberPanel && (
+        <BarberPanel
+          barbers={barbers}
+          clockIn={clockIn}
+          clockOut={clockOut}
+          onClose={() => setShowBarberPanel(false)}
+        />
+      )}
+      {showCustomerProfile && (
+        <CustomerProfileModal
+          customerProfile={customerProfile}
+          loyaltyBalance={loyaltyBalance}
+          onClose={() => setShowCustomerProfile(false)}
+        />
+      )}
+      {showCashDrawer && (
+        <CashDrawerModal
+          drawerStatus={drawerStatus}
+          cashAmount={cashAmount}
+          cashNote={cashNote}
+          setCashAmount={setCashAmount}
+          setCashNote={setCashNote}
+          openDrawer={openDrawer}
+          closeDrawer={closeDrawer}
+          addCash={addCash}
+          removeCash={removeCash}
+          onClose={() => setShowCashDrawer(false)}
+        />
+      )}
+      {showProductCheckout && (
+        <ProductCheckoutModal
+          productCart={productCart}
+          productSubtotal={productSubtotal}
+          productTax={productTax}
+          productTotal={productTotal}
+          processProductSale={processProductSale}
+          onClose={() => setShowProductCheckout(false)}
+        />
+      )}
+      {showFeedbackModal && (
+        <FeedbackModal
+          feedbackType={feedbackType}
+          feedbackTitle={feedbackTitle}
+          feedbackDescription={feedbackDescription}
+          feedbackEmail={feedbackEmail}
+          feedbackSubmitted={feedbackSubmitted}
+          setFeedbackType={setFeedbackType}
+          setFeedbackTitle={setFeedbackTitle}
+          setFeedbackDescription={setFeedbackDescription}
+          setFeedbackEmail={setFeedbackEmail}
+          submitFeedback={submitFeedback}
+          onClose={() => setShowFeedbackModal(false)}
+        />
+      )}
     </div>
   )
 }
