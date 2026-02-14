@@ -1051,6 +1051,22 @@ function App() {
                       📢 Call
                     </button>
                   )}
+                  {entry.status === "called" && (
+                    <button
+                      onClick={() => {
+                        // Start service - go to POS
+                        setViewMode("pos")
+                        // Pre-fill customer name if available
+                        if (entry.customer_phone) {
+                          setCustomerPhone(entry.customer_phone)
+                          searchCustomers(entry.customer_phone)
+                        }
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+                    >
+                      ✂️ Start Service
+                    </button>
+                  )}
                   <button
                     onClick={() => removeFromQueue(entry.id)}
                     className="px-4 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200"
