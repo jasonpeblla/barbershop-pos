@@ -212,6 +212,7 @@ function App() {
   // Appointments
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [appointmentDate, setAppointmentDate] = useState(new Date().toISOString().split('T')[0])
+  const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([])
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
@@ -321,8 +322,12 @@ function App() {
 
   const loadAppointments = async () => {
     try {
-      const data = await fetch(`${API_BASE}/appointments/?date=${appointmentDate}`).then(r => r.json())
+      const [data, upcoming] = await Promise.all([
+        fetch(`${API_BASE}/appointments/?date=${appointmentDate}`).then(r => r.json()),
+        fetch(`${API_BASE}/appointments/upcoming?hours=2`).then(r => r.json()).catch(() => [])
+      ])
       setAppointments(data)
+      setUpcomingAppointments(upcoming)
     } catch (e) {
       console.error("Failed to load appointments:", e)
     }
@@ -1825,8 +1830,29 @@ function App() {
   )
 
   // Appointments View
+  const updateAppointmentStatus = async (id: number, endpoint: string) => {
+    await fetch(`${API_BASE}/appointments/${id}/${endpoint}`, { method: "POST" })
+    loadAppointments()
+  }
+
   const AppointmentsView = () => (
     <div className="max-w-6xl mx-auto">
+      {/* Upcoming Appointments Alert */}
+      {upcomingAppointments.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-lg p-4 mb-6 text-white">
+          <h3 className="font-bold mb-2">🔔 Coming Up Soon</h3>
+          <div className="flex gap-4 overflow-x-auto">
+            {upcomingAppointments.map((appt: any) => (
+              <div key={appt.id} className="bg-white/20 rounded-lg px-4 py-2 whitespace-nowrap">
+                <span className="font-bold">{appt.customer_name}</span>
+                <span className="mx-2">•</span>
+                <span>{appt.minutes_until} min</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold">📅 Appointments</h2>
@@ -1857,7 +1883,10 @@ function App() {
             <div key={appt.id} className={`bg-white rounded-xl shadow-lg p-6 border-l-4 ${
               appt.status === "completed" ? "border-green-500" :
               appt.status === "in_progress" ? "border-blue-500" :
-              appt.status === "cancelled" ? "border-red-500" : "border-yellow-500"
+              appt.status === "checked_in" ? "border-purple-500" :
+              appt.status === "confirmed" ? "border-teal-500" :
+              appt.status === "cancelled" ? "border-red-500" :
+              appt.status === "no_show" ? "border-gray-500" : "border-yellow-500"
             }`}>
               <div className="flex justify-between items-start">
                 <div>
@@ -1869,24 +1898,40 @@ function App() {
                     <span className={`px-2 py-1 rounded text-xs font-bold ${
                       appt.status === "completed" ? "bg-green-100 text-green-800" :
                       appt.status === "in_progress" ? "bg-blue-100 text-blue-800" :
+                      appt.status === "checked_in" ? "bg-purple-100 text-purple-800" :
+                      appt.status === "confirmed" ? "bg-teal-100 text-teal-800" :
                       appt.status === "cancelled" ? "bg-red-100 text-red-800" :
+                      appt.status === "no_show" ? "bg-gray-100 text-gray-800" :
                       "bg-yellow-100 text-yellow-800"
                     }`}>
-                      {appt.status.toUpperCase()}
+                      {appt.status.replace("_", " ").toUpperCase()}
                     </span>
                   </div>
                   <p className="text-gray-600">{appt.service_name} ({appt.duration_minutes} min)</p>
                   {appt.barber_name && <p className="text-sm text-blue-600">Barber: {appt.barber_name}</p>}
                   <p className="text-sm text-gray-500">{appt.customer_phone}</p>
                 </div>
-                {appt.status === "scheduled" && (
-                  <button
-                    onClick={() => cancelAppointment(appt.id)}
-                    className="px-4 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200"
-                  >
-                    Cancel
-                  </button>
-                )}
+                <div className="flex gap-2">
+                  {appt.status === "scheduled" && (
+                    <>
+                      <button onClick={() => updateAppointmentStatus(appt.id, "confirm")} className="px-3 py-2 bg-teal-100 text-teal-700 rounded-lg font-semibold hover:bg-teal-200">Confirm</button>
+                      <button onClick={() => updateAppointmentStatus(appt.id, "check-in")} className="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg font-semibold hover:bg-purple-200">Check In</button>
+                      <button onClick={() => cancelAppointment(appt.id)} className="px-3 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200">Cancel</button>
+                    </>
+                  )}
+                  {appt.status === "confirmed" && (
+                    <>
+                      <button onClick={() => updateAppointmentStatus(appt.id, "check-in")} className="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg font-semibold hover:bg-purple-200">Check In</button>
+                      <button onClick={() => updateAppointmentStatus(appt.id, "no-show")} className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200">No Show</button>
+                    </>
+                  )}
+                  {appt.status === "checked_in" && (
+                    <button onClick={() => updateAppointmentStatus(appt.id, "start")} className="px-3 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">Start Service</button>
+                  )}
+                  {appt.status === "in_progress" && (
+                    <button onClick={() => updateAppointmentStatus(appt.id, "complete")} className="px-3 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700">Complete</button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
