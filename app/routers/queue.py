@@ -198,10 +198,128 @@ def get_queue_stats(db: Session = Depends(get_db)):
                  for e in today_completed if e.called_time]
         avg_wait = sum(waits) / len(waits) if waits else 0
     
+    # Get active barbers count for better estimation
+    active_barbers = db.query(Barber).filter(Barber.is_available == True).count()
+    estimated_wait = (waiting * 25) // max(active_barbers, 1)
+    
     return {
         "waiting": waiting,
         "called": called,
         "in_service": in_service,
+        "active_barbers": active_barbers,
         "average_wait_minutes": round(avg_wait, 1),
-        "estimated_wait_new": waiting * 25
+        "estimated_wait_new": estimated_wait
+    }
+
+
+@router.get("/{entry_id}/status")
+def get_queue_position(entry_id: int, db: Session = Depends(get_db)):
+    """Get current position and estimated wait for a queue entry (for customer self-check)"""
+    entry = db.query(WalkInQueue).filter(WalkInQueue.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Queue entry not found")
+    
+    # Count people ahead
+    ahead = db.query(WalkInQueue).filter(
+        WalkInQueue.status == "waiting",
+        WalkInQueue.position < entry.position
+    ).count()
+    
+    active_barbers = db.query(Barber).filter(Barber.is_available == True).count()
+    estimated_wait = (ahead * 25) // max(active_barbers, 1)
+    
+    return {
+        "id": entry.id,
+        "customer_name": entry.customer_name,
+        "position": entry.position,
+        "people_ahead": ahead,
+        "status": entry.status,
+        "estimated_wait_minutes": estimated_wait,
+        "check_in_time": entry.check_in_time,
+        "wait_time_so_far": int((datetime.utcnow() - entry.check_in_time).total_seconds() / 60)
+    }
+
+
+@router.post("/{entry_id}/notify-ready")
+def notify_customer_ready(entry_id: int, db: Session = Depends(get_db)):
+    """Prepare notification data for when customer is next (SMS-ready)"""
+    entry = db.query(WalkInQueue).filter(WalkInQueue.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Queue entry not found")
+    
+    # This returns data that could be sent via SMS/text
+    notification = {
+        "to_phone": entry.customer_phone,
+        "customer_name": entry.customer_name,
+        "message": f"Hi {entry.customer_name}! You're next in line at the barbershop. Please come to the front.",
+        "type": "ready",
+        "entry_id": entry.id
+    }
+    
+    # In production, this would integrate with Twilio/SMS service
+    # For now, we log and return the notification data
+    
+    return {
+        "notification": notification,
+        "status": "prepared",
+        "message": "Notification ready to send" if entry.customer_phone else "No phone number on file"
+    }
+
+
+@router.post("/{entry_id}/notify-soon")
+def notify_customer_soon(entry_id: int, db: Session = Depends(get_db)):
+    """Notify customer they're coming up soon (SMS-ready)"""
+    entry = db.query(WalkInQueue).filter(WalkInQueue.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Queue entry not found")
+    
+    # Count people ahead
+    ahead = db.query(WalkInQueue).filter(
+        WalkInQueue.status == "waiting",
+        WalkInQueue.position < entry.position
+    ).count()
+    
+    notification = {
+        "to_phone": entry.customer_phone,
+        "customer_name": entry.customer_name,
+        "message": f"Hi {entry.customer_name}! Just {ahead} {'person' if ahead == 1 else 'people'} ahead of you. Please head back to the shop!",
+        "type": "soon",
+        "people_ahead": ahead,
+        "entry_id": entry.id
+    }
+    
+    return {
+        "notification": notification,
+        "status": "prepared",
+        "message": "Notification ready to send" if entry.customer_phone else "No phone number on file"
+    }
+
+
+@router.get("/lookup/{phone}")
+def lookup_queue_by_phone(phone: str, db: Session = Depends(get_db)):
+    """Look up queue position by phone number (for customer self-service)"""
+    entry = db.query(WalkInQueue).filter(
+        WalkInQueue.customer_phone.contains(phone),
+        WalkInQueue.status.in_(["waiting", "called"])
+    ).first()
+    
+    if not entry:
+        return {"found": False, "message": "No active queue entry found for this phone number"}
+    
+    ahead = db.query(WalkInQueue).filter(
+        WalkInQueue.status == "waiting",
+        WalkInQueue.position < entry.position
+    ).count()
+    
+    active_barbers = db.query(Barber).filter(Barber.is_available == True).count()
+    estimated_wait = (ahead * 25) // max(active_barbers, 1)
+    
+    return {
+        "found": True,
+        "id": entry.id,
+        "customer_name": entry.customer_name,
+        "position": entry.position,
+        "people_ahead": ahead,
+        "status": entry.status,
+        "estimated_wait_minutes": estimated_wait
     }
