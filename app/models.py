@@ -229,3 +229,48 @@ class GiftCardTransaction(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     gift_card = relationship("GiftCard")
+
+
+class ServicePackage(Base):
+    """Pre-paid service packages/bundles"""
+    __tablename__ = "service_packages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    price = Column(Float, nullable=False)
+    valid_days = Column(Integer, default=365)
+    max_uses = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    services = relationship("PackageService", back_populates="package")
+
+
+class PackageService(Base):
+    """Services included in a package"""
+    __tablename__ = "package_services"
+
+    id = Column(Integer, primary_key=True, index=True)
+    package_id = Column(Integer, ForeignKey("service_packages.id"), nullable=False)
+    service_type_id = Column(Integer, ForeignKey("service_types.id"), nullable=False)
+    quantity = Column(Integer, default=1)
+
+    package = relationship("ServicePackage", back_populates="services")
+    service_type = relationship("ServiceType")
+
+
+class CustomerPackage(Base):
+    """Packages purchased by customers"""
+    __tablename__ = "customer_packages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    package_id = Column(Integer, ForeignKey("service_packages.id"), nullable=False)
+    remaining_uses = Column(Integer, nullable=False)
+    purchase_price = Column(Float, nullable=False)
+    purchased_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+
+    customer = relationship("Customer")
+    package = relationship("ServicePackage")
