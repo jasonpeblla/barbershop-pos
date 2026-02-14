@@ -5,7 +5,8 @@ from datetime import datetime, date, timedelta
 from typing import Optional
 
 from app.database import get_db
-from app.models import Order, Payment, Barber, ServiceType, OrderService, Customer
+from app.models import Order, Payment, Barber, ServiceType, OrderService, Customer, RevenueTarget
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -355,4 +356,262 @@ def barber_leaderboard(period: str = "today", db: Session = Depends(get_db)):
         "start_date": start_date.isoformat(),
         "end_date": end_date.isoformat(),
         "leaderboard": leaderboard
+    }
+
+
+# ===== REVENUE TARGETS =====
+
+class TargetCreate(BaseModel):
+    target_type: str = "daily"  # daily, weekly, monthly
+    target_date: str  # YYYY-MM-DD
+    target_amount: float
+    barber_id: Optional[int] = None
+    notes: Optional[str] = None
+
+
+@router.post("/targets")
+def create_target(target: TargetCreate, db: Session = Depends(get_db)):
+    """Create a revenue target"""
+    target_date = datetime.strptime(target.target_date, "%Y-%m-%d")
+    
+    # Check for existing target
+    existing = db.query(RevenueTarget).filter(
+        RevenueTarget.target_type == target.target_type,
+        func.date(RevenueTarget.target_date) == target_date.date(),
+        RevenueTarget.barber_id == target.barber_id
+    ).first()
+    
+    if existing:
+        # Update existing
+        existing.target_amount = target.target_amount
+        existing.notes = target.notes
+        db.commit()
+        return {"message": "Target updated", "id": existing.id}
+    
+    db_target = RevenueTarget(
+        target_type=target.target_type,
+        target_date=target_date,
+        target_amount=target.target_amount,
+        barber_id=target.barber_id,
+        notes=target.notes
+    )
+    db.add(db_target)
+    db.commit()
+    db.refresh(db_target)
+    
+    return {"message": "Target created", "id": db_target.id}
+
+
+@router.get("/targets/today")
+def get_today_targets(db: Session = Depends(get_db)):
+    """Get today's revenue targets and progress"""
+    today = date.today()
+    
+    # Get shop-wide daily target
+    shop_target = db.query(RevenueTarget).filter(
+        RevenueTarget.target_type == "daily",
+        func.date(RevenueTarget.target_date) == today,
+        RevenueTarget.barber_id.is_(None)
+    ).first()
+    
+    # Get barber-specific targets
+    barber_targets = db.query(RevenueTarget).filter(
+        RevenueTarget.target_type == "daily",
+        func.date(RevenueTarget.target_date) == today,
+        RevenueTarget.barber_id.isnot(None)
+    ).all()
+    
+    # Calculate actual revenue
+    orders = db.query(Order).filter(
+        func.date(Order.created_at) == today,
+        Order.status == "completed"
+    ).all()
+    
+    total_revenue = sum(o.subtotal for o in orders)
+    
+    # Shop progress
+    shop_progress = None
+    if shop_target:
+        progress_pct = (total_revenue / shop_target.target_amount * 100) if shop_target.target_amount > 0 else 0
+        shop_progress = {
+            "target": shop_target.target_amount,
+            "actual": round(total_revenue, 2),
+            "remaining": round(max(0, shop_target.target_amount - total_revenue), 2),
+            "progress_percent": round(min(100, progress_pct), 1),
+            "on_track": progress_pct >= 50 or datetime.now().hour < 14,  # Expect 50% by 2pm
+            "status": get_target_status(progress_pct)
+        }
+    
+    # Barber progress
+    barber_progress = []
+    for bt in barber_targets:
+        barber = db.query(Barber).filter(Barber.id == bt.barber_id).first()
+        barber_orders = [o for o in orders if o.barber_id == bt.barber_id]
+        barber_revenue = sum(o.subtotal for o in barber_orders)
+        progress_pct = (barber_revenue / bt.target_amount * 100) if bt.target_amount > 0 else 0
+        
+        barber_progress.append({
+            "barber_id": bt.barber_id,
+            "barber_name": barber.name if barber else "Unknown",
+            "target": bt.target_amount,
+            "actual": round(barber_revenue, 2),
+            "progress_percent": round(min(100, progress_pct), 1),
+            "status": get_target_status(progress_pct)
+        })
+    
+    return {
+        "date": today.isoformat(),
+        "shop_target": shop_progress,
+        "barber_targets": barber_progress,
+        "total_revenue_today": round(total_revenue, 2)
+    }
+
+
+def get_target_status(progress_pct: float) -> dict:
+    """Get status based on progress percentage"""
+    current_hour = datetime.now().hour
+    expected_by_now = (current_hour - 9) / 10 * 100  # Assuming 9am-7pm workday
+    
+    if progress_pct >= 100:
+        return {"level": "achieved", "emoji": "🎯", "message": "Target achieved!"}
+    elif progress_pct >= expected_by_now:
+        return {"level": "on_track", "emoji": "✅", "message": "On track"}
+    elif progress_pct >= expected_by_now * 0.7:
+        return {"level": "slightly_behind", "emoji": "⚡", "message": "Slightly behind - push harder!"}
+    else:
+        return {"level": "behind", "emoji": "🔥", "message": "Need to pick up pace!"}
+
+
+@router.get("/targets/week")
+def get_week_targets(db: Session = Depends(get_db)):
+    """Get this week's revenue targets and progress"""
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=6)
+    
+    # Get weekly target
+    weekly_target = db.query(RevenueTarget).filter(
+        RevenueTarget.target_type == "weekly",
+        func.date(RevenueTarget.target_date) >= week_start,
+        func.date(RevenueTarget.target_date) <= week_end,
+        RevenueTarget.barber_id.is_(None)
+    ).first()
+    
+    # Calculate week's revenue
+    orders = db.query(Order).filter(
+        func.date(Order.created_at) >= week_start,
+        func.date(Order.created_at) <= today,
+        Order.status == "completed"
+    ).all()
+    
+    total_revenue = sum(o.subtotal for o in orders)
+    
+    # Daily breakdown
+    daily_revenue = {}
+    for i in range(7):
+        day = week_start + timedelta(days=i)
+        day_orders = [o for o in orders if o.created_at.date() == day]
+        daily_revenue[day.strftime("%a")] = round(sum(o.subtotal for o in day_orders), 2)
+    
+    result = {
+        "week_start": week_start.isoformat(),
+        "week_end": week_end.isoformat(),
+        "total_revenue": round(total_revenue, 2),
+        "daily_breakdown": daily_revenue,
+        "days_remaining": (week_end - today).days
+    }
+    
+    if weekly_target:
+        progress_pct = (total_revenue / weekly_target.target_amount * 100) if weekly_target.target_amount > 0 else 0
+        days_elapsed = (today - week_start).days + 1
+        expected_pct = (days_elapsed / 7) * 100
+        
+        result["target"] = {
+            "amount": weekly_target.target_amount,
+            "remaining": round(max(0, weekly_target.target_amount - total_revenue), 2),
+            "progress_percent": round(min(100, progress_pct), 1),
+            "daily_target_remaining": round((weekly_target.target_amount - total_revenue) / max(1, (week_end - today).days + 1), 2),
+            "on_track": progress_pct >= expected_pct * 0.9
+        }
+    
+    return result
+
+
+@router.get("/targets/history")
+def get_target_history(days: int = 30, db: Session = Depends(get_db)):
+    """Get historical target performance"""
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days)
+    
+    targets = db.query(RevenueTarget).filter(
+        RevenueTarget.target_type == "daily",
+        func.date(RevenueTarget.target_date) >= start_date,
+        func.date(RevenueTarget.target_date) < end_date,
+        RevenueTarget.barber_id.is_(None)
+    ).order_by(RevenueTarget.target_date.desc()).all()
+    
+    history = []
+    achieved_count = 0
+    
+    for t in targets:
+        # Get actual revenue for that day
+        day_orders = db.query(Order).filter(
+            func.date(Order.created_at) == t.target_date.date(),
+            Order.status == "completed"
+        ).all()
+        
+        actual = sum(o.subtotal for o in day_orders)
+        achieved = actual >= t.target_amount
+        if achieved:
+            achieved_count += 1
+        
+        history.append({
+            "date": t.target_date.date().isoformat(),
+            "target": t.target_amount,
+            "actual": round(actual, 2),
+            "achieved": achieved,
+            "variance": round(actual - t.target_amount, 2)
+        })
+    
+    return {
+        "period_start": start_date.isoformat(),
+        "period_end": end_date.isoformat(),
+        "total_targets": len(targets),
+        "targets_achieved": achieved_count,
+        "achievement_rate": round((achieved_count / len(targets) * 100) if targets else 0, 1),
+        "history": history
+    }
+
+
+@router.post("/targets/set-default")
+def set_default_daily_target(amount: float, db: Session = Depends(get_db)):
+    """Set default daily target for the next 30 days"""
+    today = date.today()
+    created = 0
+    
+    for i in range(30):
+        target_date = today + timedelta(days=i)
+        
+        # Skip if target already exists
+        existing = db.query(RevenueTarget).filter(
+            RevenueTarget.target_type == "daily",
+            func.date(RevenueTarget.target_date) == target_date,
+            RevenueTarget.barber_id.is_(None)
+        ).first()
+        
+        if not existing:
+            db_target = RevenueTarget(
+                target_type="daily",
+                target_date=datetime.combine(target_date, datetime.min.time()),
+                target_amount=amount
+            )
+            db.add(db_target)
+            created += 1
+    
+    db.commit()
+    
+    return {
+        "message": f"Created {created} daily targets",
+        "daily_amount": amount,
+        "period": f"{today.isoformat()} to {(today + timedelta(days=29)).isoformat()}"
     }

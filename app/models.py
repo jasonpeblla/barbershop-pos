@@ -440,6 +440,22 @@ class Referral(Base):
     referred = relationship("Customer", foreign_keys=[referred_id])
 
 
+class RevenueTarget(Base):
+    """Daily/weekly/monthly revenue targets"""
+    __tablename__ = "revenue_targets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    target_type = Column(String(20), nullable=False)  # daily, weekly, monthly
+    target_date = Column(DateTime, nullable=False)  # The date/week/month this target is for
+    target_amount = Column(Float, nullable=False)
+    actual_amount = Column(Float, default=0.0)
+    barber_id = Column(Integer, ForeignKey("barbers.id"), nullable=True)  # null = shop-wide
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    barber = relationship("Barber")
+
+
 class Product(Base):
     """Retail products for sale"""
     __tablename__ = "products"
