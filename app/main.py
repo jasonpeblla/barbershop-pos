@@ -17,6 +17,7 @@ from app.routers import (
     products,
     feedback,
     loyalty,
+    gift_cards,
 )
 
 # Seed data for barbershop services
@@ -119,6 +120,7 @@ app.include_router(cash_drawer.router)
 app.include_router(products.router)
 app.include_router(feedback.router)
 app.include_router(loyalty.router)
+app.include_router(gift_cards.router)
 
 
 @app.get("/health")

@@ -196,3 +196,36 @@ class LoyaltyTransaction(Base):
 
     customer = relationship("Customer")
     order = relationship("Order")
+
+
+class GiftCard(Base):
+    """Gift cards for the barbershop"""
+    __tablename__ = "gift_cards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(20), unique=True, index=True, nullable=False)
+    initial_balance = Column(Float, nullable=False)
+    current_balance = Column(Float, nullable=False)
+    purchaser_name = Column(String(100), nullable=True)
+    purchaser_email = Column(String(255), nullable=True)
+    recipient_name = Column(String(100), nullable=True)
+    recipient_email = Column(String(255), nullable=True)
+    message = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+
+
+class GiftCardTransaction(Base):
+    """Track gift card transactions"""
+    __tablename__ = "gift_card_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    gift_card_id = Column(Integer, ForeignKey("gift_cards.id"), nullable=False)
+    amount = Column(Float, nullable=False)  # positive = add, negative = redemption
+    transaction_type = Column(String(50), nullable=False)  # purchase, redemption, reload
+    description = Column(String(255), nullable=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    gift_card = relationship("GiftCard")
