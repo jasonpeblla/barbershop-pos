@@ -118,6 +118,23 @@ class OrderService(Base):
     service_type = relationship("ServiceType")
 
 
+class CustomerServiceNote(Base):
+    """Persistent notes about customer preferences for services"""
+    __tablename__ = "customer_service_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    service_type_id = Column(Integer, ForeignKey("service_types.id"), nullable=True)  # null = general note
+    note = Column(Text, nullable=False)
+    note_type = Column(String(50), default="preference")  # preference, warning, style, allergy
+    is_important = Column(Boolean, default=False)
+    created_by = Column(String(100), nullable=True)  # Barber name
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    customer = relationship("Customer")
+    service_type = relationship("ServiceType")
+
+
 class Payment(Base):
     __tablename__ = "payments"
 

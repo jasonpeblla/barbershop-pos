@@ -4,9 +4,10 @@ from sqlalchemy import or_
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime, timedelta
+from typing import Optional
 
 from app.database import get_db
-from app.models import Customer, Order, OrderService, ServiceType
+from app.models import Customer, Order, OrderService, ServiceType, CustomerServiceNote
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -762,3 +763,146 @@ def get_at_risk_streaks(db: Session = Depends(get_db)):
             })
     
     return at_risk
+
+
+# ===== SERVICE NOTES =====
+
+class ServiceNoteCreate(BaseModel):
+    note: str
+    service_type_id: Optional[int] = None
+    note_type: str = "preference"  # preference, warning, style, allergy
+    is_important: bool = False
+    created_by: Optional[str] = None
+
+
+class ServiceNoteCreate(BaseModel):
+    note: str
+    service_type_id: Optional[int] = None
+    note_type: str = "preference"
+    is_important: bool = False
+    created_by: Optional[str] = None
+
+
+@router.post("/{customer_id}/service-notes")
+def add_service_note(customer_id: int, data: ServiceNoteCreate, db: Session = Depends(get_db)):
+    """Add a service note for a customer"""
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    note = CustomerServiceNote(
+        customer_id=customer_id,
+        service_type_id=data.service_type_id,
+        note=data.note,
+        note_type=data.note_type,
+        is_important=data.is_important,
+        created_by=data.created_by
+    )
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+    
+    return {"message": "Note added", "id": note.id}
+
+
+@router.get("/{customer_id}/service-notes")
+def get_service_notes(customer_id: int, service_type_id: Optional[int] = None, db: Session = Depends(get_db)):
+    """Get all service notes for a customer"""
+    query = db.query(CustomerServiceNote).filter(
+        CustomerServiceNote.customer_id == customer_id
+    )
+    
+    if service_type_id:
+        query = query.filter(CustomerServiceNote.service_type_id == service_type_id)
+    
+    notes = query.order_by(CustomerServiceNote.is_important.desc(), CustomerServiceNote.created_at.desc()).all()
+    
+    return [
+        {
+            "id": n.id,
+            "note": n.note,
+            "note_type": n.note_type,
+            "is_important": n.is_important,
+            "service_type": n.service_type.name if n.service_type else "General",
+            "created_by": n.created_by,
+            "created_at": n.created_at
+        }
+        for n in notes
+    ]
+
+
+@router.get("/{customer_id}/service-notes/important")
+def get_important_notes(customer_id: int, db: Session = Depends(get_db)):
+    """Get important notes that should be shown before service"""
+    notes = db.query(CustomerServiceNote).filter(
+        CustomerServiceNote.customer_id == customer_id,
+        CustomerServiceNote.is_important == True
+    ).all()
+    
+    # Group by type
+    warnings = [n for n in notes if n.note_type == "warning"]
+    allergies = [n for n in notes if n.note_type == "allergy"]
+    preferences = [n for n in notes if n.note_type == "preference"]
+    
+    return {
+        "has_important_notes": len(notes) > 0,
+        "warnings": [{"note": n.note, "service": n.service_type.name if n.service_type else "General"} for n in warnings],
+        "allergies": [{"note": n.note} for n in allergies],
+        "preferences": [{"note": n.note, "service": n.service_type.name if n.service_type else "General"} for n in preferences]
+    }
+
+
+@router.delete("/{customer_id}/service-notes/{note_id}")
+def delete_service_note(customer_id: int, note_id: int, db: Session = Depends(get_db)):
+    """Delete a service note"""
+    note = db.query(CustomerServiceNote).filter(
+        CustomerServiceNote.id == note_id,
+        CustomerServiceNote.customer_id == customer_id
+    ).first()
+    
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    
+    db.delete(note)
+    db.commit()
+    
+    return {"message": "Note deleted"}
+
+
+@router.get("/{customer_id}/service-history")
+def get_service_history(customer_id: int, limit: int = 10, db: Session = Depends(get_db)):
+    """Get customer's service history with notes"""
+    orders = db.query(Order).filter(
+        Order.customer_id == customer_id,
+        Order.status == "completed"
+    ).order_by(Order.completed_at.desc()).limit(limit).all()
+    
+    history = []
+    for order in orders:
+        services = []
+        for os in order.services:
+            service = db.query(ServiceType).filter(ServiceType.id == os.service_type_id).first()
+            services.append({
+                "service_name": service.name if service else "Unknown",
+                "price": os.unit_price,
+                "notes": os.notes
+            })
+        
+        from app.models import Barber
+        barber = db.query(Barber).filter(Barber.id == order.barber_id).first() if order.barber_id else None
+        
+        history.append({
+            "order_id": order.id,
+            "date": order.completed_at.isoformat() if order.completed_at else order.created_at.isoformat(),
+            "barber": barber.name if barber else "Unknown",
+            "services": services,
+            "total": order.total,
+            "tip": order.tip,
+            "order_notes": order.notes
+        })
+    
+    return {
+        "customer_id": customer_id,
+        "total_visits": len(history),
+        "history": history
+    }
